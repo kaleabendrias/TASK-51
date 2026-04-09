@@ -33,14 +33,19 @@ public class ListingController {
                                     @RequestParam(required = false) BigDecimal minPrice,
                                     @RequestParam(required = false) BigDecimal maxPrice,
                                     @RequestParam(required = false) String location,
+                                    @RequestParam(required = false) String locationState,
+                                    @RequestParam(required = false) String locationCity,
+                                    @RequestParam(required = false) String locationNeighborhood,
                                     @RequestParam(required = false) String theme,
                                     @RequestParam(required = false) String transportMode,
                                     @RequestParam(required = false) BigDecimal minRating,
                                     @RequestParam(required = false) String availableDate,
+                                    @RequestParam(required = false) String sortBy,
                                     @RequestParam(defaultValue = "1") int page,
                                     @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(listingService.search(keyword, category, minPrice, maxPrice,
-                location, theme, transportMode, minRating, availableDate, page, size));
+                location, locationState, locationCity, locationNeighborhood,
+                theme, transportMode, minRating, availableDate, sortBy, page, size));
     }
 
     @GetMapping("/{id}")

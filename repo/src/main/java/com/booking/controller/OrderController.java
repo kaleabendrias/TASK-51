@@ -83,6 +83,9 @@ public class OrderController {
         } catch (IllegalArgumentException | IllegalStateException e) {
             idempotencyService.recordResponse(idempotencyKey, action, null, 400, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (SecurityException e) {
+            idempotencyService.recordResponse(idempotencyKey, action, null, 403, e.getMessage());
+            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             idempotencyService.recordResponse(idempotencyKey, action, null, 500, e.getMessage());
             return ResponseEntity.internalServerError().body(Map.of("error", "Order creation failed"));

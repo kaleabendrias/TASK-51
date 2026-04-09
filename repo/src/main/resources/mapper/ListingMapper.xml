@@ -12,6 +12,9 @@
         <result property="price" column="price"/>
         <result property="durationMinutes" column="duration_minutes"/>
         <result property="location" column="location"/>
+        <result property="locationState" column="location_state"/>
+        <result property="locationCity" column="location_city"/>
+        <result property="locationNeighborhood" column="location_neighborhood"/>
         <result property="maxConcurrent" column="max_concurrent"/>
         <result property="active" column="active"/>
         <result property="theme" column="theme"/>
@@ -34,31 +37,19 @@
         <if test="keyword != null and keyword != ''">
             AND (l.title LIKE CONCAT('%',#{keyword},'%') OR l.description LIKE CONCAT('%',#{keyword},'%'))
         </if>
-        <if test="category != null and category != ''">
-            AND l.category = #{category}
-        </if>
-        <if test="minPrice != null">
-            AND l.price &gt;= #{minPrice}
-        </if>
-        <if test="maxPrice != null">
-            AND l.price &lt;= #{maxPrice}
-        </if>
-        <if test="location != null and location != ''">
-            AND l.location LIKE CONCAT('%',#{location},'%')
-        </if>
-        <if test="theme != null and theme != ''">
-            AND l.theme = #{theme}
-        </if>
-        <if test="transportMode != null and transportMode != ''">
-            AND l.transport_mode = #{transportMode}
-        </if>
-        <if test="minRating != null">
-            AND l.rating &gt;= #{minRating}
-        </if>
+        <if test="category != null and category != ''">AND l.category = #{category}</if>
+        <if test="minPrice != null">AND l.price &gt;= #{minPrice}</if>
+        <if test="maxPrice != null">AND l.price &lt;= #{maxPrice}</if>
+        <if test="location != null and location != ''">AND l.location LIKE CONCAT('%',#{location},'%')</if>
+        <if test="locationState != null and locationState != ''">AND l.location_state = #{locationState}</if>
+        <if test="locationCity != null and locationCity != ''">AND l.location_city = #{locationCity}</if>
+        <if test="locationNeighborhood != null and locationNeighborhood != ''">AND l.location_neighborhood = #{locationNeighborhood}</if>
+        <if test="theme != null and theme != ''">AND l.theme = #{theme}</if>
+        <if test="transportMode != null and transportMode != ''">AND l.transport_mode = #{transportMode}</if>
+        <if test="minRating != null">AND l.rating &gt;= #{minRating}</if>
         <if test="availableDate != null and availableDate != ''">
             AND EXISTS (SELECT 1 FROM time_slots ts
-                WHERE ts.listing_id = l.id
-                AND ts.slot_date = #{availableDate}
+                WHERE ts.listing_id = l.id AND ts.slot_date = #{availableDate}
                 AND ts.booked_count &lt; ts.capacity)
         </if>
     </sql>
@@ -66,15 +57,12 @@
     <select id="findById" resultMap="listingResult">
         <include refid="selectListing"/> WHERE l.id = #{id}
     </select>
-
     <select id="findAll" resultMap="listingResult">
         <include refid="selectListing"/> ORDER BY l.created_at DESC
     </select>
-
     <select id="findActive" resultMap="listingResult">
         <include refid="selectListing"/> WHERE l.active = true ORDER BY l.created_at DESC
     </select>
-
     <select id="findByPhotographerId" resultMap="listingResult">
         <include refid="selectListing"/> WHERE l.photographer_id = #{photographerId} ORDER BY l.created_at DESC
     </select>
@@ -82,7 +70,13 @@
     <select id="search" resultMap="listingResult">
         <include refid="selectListing"/>
         <include refid="searchConditions"/>
-        ORDER BY l.created_at DESC
+        <choose>
+            <when test="sortBy == 'price_asc'">ORDER BY l.price ASC</when>
+            <when test="sortBy == 'price_desc'">ORDER BY l.price DESC</when>
+            <when test="sortBy == 'rating'">ORDER BY l.rating DESC</when>
+            <when test="sortBy == 'duration'">ORDER BY l.duration_minutes ASC</when>
+            <otherwise>ORDER BY l.created_at DESC</otherwise>
+        </choose>
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
@@ -93,14 +87,18 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO listings (photographer_id, title, description, category, price, duration_minutes,
-                              location, max_concurrent, active, theme, transport_mode)
+                              location, location_state, location_city, location_neighborhood,
+                              max_concurrent, active, theme, transport_mode)
         VALUES (#{photographerId}, #{title}, #{description}, #{category}, #{price}, #{durationMinutes},
-                #{location}, #{maxConcurrent}, #{active}, #{theme}, #{transportMode})
+                #{location}, #{locationState}, #{locationCity}, #{locationNeighborhood},
+                #{maxConcurrent}, #{active}, #{theme}, #{transportMode})
     </insert>
 
     <update id="update">
         UPDATE listings SET title=#{title}, description=#{description}, category=#{category},
             price=#{price}, duration_minutes=#{durationMinutes}, location=#{location},
+            location_state=#{locationState}, location_city=#{locationCity},
+            location_neighborhood=#{locationNeighborhood},
             max_concurrent=#{maxConcurrent}, active=#{active}, theme=#{theme}, transport_mode=#{transportMode}
         WHERE id = #{id}
     </update>

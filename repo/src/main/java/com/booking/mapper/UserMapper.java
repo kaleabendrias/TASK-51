@@ -15,6 +15,7 @@ public interface UserMapper {
     List<User> findByRoleId(@Param("roleId") Long roleId);
     void insert(User user);
     void update(User user);
+    void updateProfile(User user);
     void updateEnabled(@Param("id") Long id, @Param("enabled") Boolean enabled);
     void updatePasswordHash(@Param("id") Long id, @Param("passwordHash") String passwordHash);
     void updatePhone(@Param("id") Long id, @Param("phone") String phone);

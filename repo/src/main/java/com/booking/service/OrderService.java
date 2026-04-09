@@ -27,11 +27,13 @@ public class OrderService {
     private final NotificationService notificationService;
     private final PointsService pointsService;
     private final com.booking.mapper.PointsRuleMapper pointsRuleMapper;
+    private final com.booking.mapper.AddressMapper addressMapper;
 
     public OrderService(OrderMapper orderMapper, OrderActionMapper orderActionMapper,
                         ListingMapper listingMapper, TimeSlotService timeSlotService,
                         NotificationService notificationService, PointsService pointsService,
-                        com.booking.mapper.PointsRuleMapper pointsRuleMapper) {
+                        com.booking.mapper.PointsRuleMapper pointsRuleMapper,
+                        com.booking.mapper.AddressMapper addressMapper) {
         this.orderMapper = orderMapper;
         this.orderActionMapper = orderActionMapper;
         this.listingMapper = listingMapper;
@@ -39,6 +41,7 @@ public class OrderService {
         this.notificationService = notificationService;
         this.pointsService = pointsService;
         this.pointsRuleMapper = pointsRuleMapper;
+        this.addressMapper = addressMapper;
     }
 
     public Order getById(Long id) {
@@ -78,6 +81,16 @@ public class OrderService {
         }
         if ("COURIER".equals(mode) && addressId == null) {
             throw new IllegalArgumentException("Address is required for courier delivery");
+        }
+        // Verify address ownership for courier orders
+        if (addressId != null) {
+            com.booking.domain.Address addr = addressMapper.findById(addressId);
+            if (addr == null) {
+                throw new IllegalArgumentException("Address not found");
+            }
+            if (!addr.getUserId().equals(customer.getId())) {
+                throw new SecurityException("Address does not belong to the current user");
+            }
         }
         Listing listing = listingMapper.findById(listingId);
         if (listing == null || !listing.getActive()) {

@@ -18,6 +18,7 @@ import static org.mockito.Mockito.*;
 class NotificationDispatchTest {
 
     @Mock NotificationMapper notificationMapper;
+    @Mock com.booking.mapper.NotificationPreferenceMapper prefMapper;
     @Mock UserMapper userMapper;
     @InjectMocks NotificationService notificationService;
 

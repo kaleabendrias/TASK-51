@@ -43,15 +43,28 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
+    @PatchMapping("/{id}")
+    public ResponseEntity<?> patchUpdate(@PathVariable Long id, @RequestBody Map<String, Object> fields,
+                                         HttpSession session) {
+        if (!SessionUtil.isAdmin(session)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Admin access required"));
+        }
+        try {
+            userService.patchUpdate(id, fields);
+            return ResponseEntity.ok(Map.of("message", "User updated"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody User user,
+    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Map<String, Object> fields,
                                     HttpSession session) {
         if (!SessionUtil.isAdmin(session)) {
             return ResponseEntity.status(403).body(Map.of("error", "Admin access required"));
         }
         try {
-            user.setId(id);
-            userService.update(user);
+            userService.patchUpdate(id, fields);
             return ResponseEntity.ok(Map.of("message", "User updated"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

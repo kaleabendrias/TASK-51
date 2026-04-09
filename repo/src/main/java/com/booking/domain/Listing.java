@@ -12,6 +12,9 @@ public class Listing {
     private BigDecimal price;
     private Integer durationMinutes;
     private String location;
+    private String locationState;
+    private String locationCity;
+    private String locationNeighborhood;
     private Integer maxConcurrent;
     private Boolean active;
     private LocalDateTime createdAt;
@@ -57,6 +60,12 @@ public class Listing {
     public void setRating(java.math.BigDecimal rating) { this.rating = rating; }
     public Integer getRatingCount() { return ratingCount; }
     public void setRatingCount(Integer ratingCount) { this.ratingCount = ratingCount; }
+    public String getLocationState() { return locationState; }
+    public void setLocationState(String locationState) { this.locationState = locationState; }
+    public String getLocationCity() { return locationCity; }
+    public void setLocationCity(String locationCity) { this.locationCity = locationCity; }
+    public String getLocationNeighborhood() { return locationNeighborhood; }
+    public void setLocationNeighborhood(String locationNeighborhood) { this.locationNeighborhood = locationNeighborhood; }
     public String getPhotographerName() { return photographerName; }
     public void setPhotographerName(String photographerName) { this.photographerName = photographerName; }
 }

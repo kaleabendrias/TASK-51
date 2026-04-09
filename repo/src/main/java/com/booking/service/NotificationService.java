@@ -1,12 +1,16 @@
 package com.booking.service;
 
+import com.booking.domain.NotificationPreference;
 import com.booking.domain.NotificationRecord;
 import com.booking.domain.Order;
 import com.booking.domain.User;
 import com.booking.mapper.NotificationMapper;
+import com.booking.mapper.NotificationPreferenceMapper;
 import com.booking.mapper.UserMapper;
 import com.booking.util.FieldEncryptor;
 import com.booking.util.MaskUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,13 +19,18 @@ import java.util.Map;
 @Service
 public class NotificationService {
 
+    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
     private static final int MAX_RETRIES = 3;
 
     private final NotificationMapper notificationMapper;
+    private final NotificationPreferenceMapper prefMapper;
     private final UserMapper userMapper;
 
-    public NotificationService(NotificationMapper notificationMapper, UserMapper userMapper) {
+    public NotificationService(NotificationMapper notificationMapper,
+                               NotificationPreferenceMapper prefMapper,
+                               UserMapper userMapper) {
         this.notificationMapper = notificationMapper;
+        this.prefMapper = prefMapper;
         this.userMapper = userMapper;
     }
 
@@ -58,10 +67,49 @@ public class NotificationService {
         notificationMapper.updateStatus(notificationId, "QUEUED");
     }
 
+    /**
+     * True queue lifecycle: attempt dispatch, increment failure on error, mark terminal after max retries.
+     */
+    public void processRetryQueue() {
+        List<NotificationRecord> queued = notificationMapper.findQueued();
+        for (NotificationRecord r : queued) {
+            boolean dispatched = attemptDispatch(r);
+            if (dispatched) {
+                notificationMapper.updateStatus(r.getId(), "SENT");
+            } else {
+                notificationMapper.incrementRetry(r.getId());
+                int newCount = (r.getRetryCount() != null ? r.getRetryCount() : 0) + 1;
+                if (newCount >= MAX_RETRIES) {
+                    notificationMapper.markTerminal(r.getId());
+                    log.warn("Notification {} marked terminal after {} failures", r.getId(), newCount);
+                } else {
+                    notificationMapper.updateStatus(r.getId(), "RETRY");
+                    log.info("Notification {} failed, retry {}/{}", r.getId(), newCount, MAX_RETRIES);
+                }
+            }
+        }
+    }
+
+    private boolean attemptDispatch(NotificationRecord record) {
+        // Local-only queue: simulate dispatch — always succeeds for now
+        // In production, this would call an email/SMS gateway and return false on failure
+        return true;
+    }
+
+    /**
+     * Queue email with mute preference enforcement.
+     * Compliance notifications are never muted.
+     */
     public void queueEmail(Long userId, String subject, String body,
                            String refType, Long refId) {
         User user = userMapper.findById(userId);
         if (user == null || user.getEmail() == null) return;
+
+        // Enforce mute preferences (compliance is never muted)
+        boolean isCompliance = "COMPLIANCE".equals(refType);
+        if (!isCompliance && isMuted(userId, refType)) {
+            return;
+        }
 
         NotificationRecord record = new NotificationRecord();
         record.setUserId(userId);
@@ -79,6 +127,9 @@ public class NotificationService {
         User user = userMapper.findById(userId);
         if (user == null || user.getPhone() == null) return;
 
+        boolean isCompliance = "COMPLIANCE".equals(refType);
+        if (!isCompliance && isMuted(userId, refType)) return;
+
         NotificationRecord record = new NotificationRecord();
         record.setUserId(userId);
         record.setChannel("SMS");
@@ -89,6 +140,19 @@ public class NotificationService {
         record.setReferenceType(refType);
         record.setReferenceId(refId);
         notificationMapper.insert(record);
+    }
+
+    private boolean isMuted(Long userId, String refType) {
+        NotificationPreference pref = prefMapper.findByUserId(userId);
+        if (pref == null) return false;
+        if (Boolean.TRUE.equals(pref.getMuteNonCritical())) return true;
+        return switch (refType != null ? refType : "") {
+            case "ORDER" -> !Boolean.TRUE.equals(pref.getOrderUpdates());
+            case "HOLD" -> !Boolean.TRUE.equals(pref.getHolds());
+            case "REMINDER", "OVERDUE" -> !Boolean.TRUE.equals(pref.getReminders());
+            case "APPROVAL" -> !Boolean.TRUE.equals(pref.getApprovals());
+            default -> false;
+        };
     }
 
     // Template catalog for order state notifications
@@ -113,15 +177,6 @@ public class NotificationService {
         queueEmail(order.getPhotographerId(), subject, formatted, "ORDER", order.getId());
     }
 
-    public void processRetryQueue() {
-        List<NotificationRecord> queued = notificationMapper.findQueued();
-        for (NotificationRecord r : queued) {
-            // Simulate dispatch attempt — in a real system this would call an email/SMS gateway
-            // For local-only queuing, mark as processed
-            notificationMapper.updateStatus(r.getId(), "SENT");
-        }
-    }
-
     public void queueHoldNotification(Long userId, String orderNumber, String reason) {
         queueEmail(userId, "HOLD: " + orderNumber,
                 String.format("A hold has been placed on order %s. Reason: %s", orderNumber, reason),
@@ -132,6 +187,12 @@ public class NotificationService {
         queueEmail(userId, "OVERDUE: " + orderNumber,
                 String.format("Order %s payment is overdue. Please complete payment to avoid cancellation.", orderNumber),
                 "OVERDUE", null);
+    }
+
+    public void queueApprovalNotification(Long userId, String orderNumber, String action) {
+        queueEmail(userId, "APPROVAL REQUIRED: " + orderNumber,
+                String.format("Order %s requires your approval for: %s", orderNumber, action),
+                "APPROVAL", null);
     }
 
     private String maskRecipient(String channel, String encrypted) {

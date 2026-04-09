@@ -17,6 +17,7 @@ services:
       - ./docker/mysql/04-seed-v2.sql:/docker-entrypoint-initdb.d/04-seed-v2.sql:ro
       - ./docker/mysql/05-migration-v3.sql:/docker-entrypoint-initdb.d/05-migration-v3.sql:ro
       - ./docker/mysql/06-migration-v4.sql:/docker-entrypoint-initdb.d/06-migration-v4.sql:ro
+      - ./docker/mysql/07-migration-v5.sql:/docker-entrypoint-initdb.d/07-migration-v5.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_pass_2024"]
       interval: 5s

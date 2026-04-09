@@ -92,10 +92,10 @@ class ListingServiceTest {
         assertFalse(listingService.isOwner(1L, 99L));
     }
 
-    @Test void searchDelegatesWithPagination() {
-        when(listingMapper.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), anyInt())).thenReturn(List.of());
-        when(listingMapper.searchCount(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(0L);
-        var result = listingService.search("kw", "cat", null, null, null, null, null, null, null, 1, 20);
+    @Test void searchDelegatesWithPaginationAndSort() {
+        when(listingMapper.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), anyInt())).thenReturn(List.of());
+        when(listingMapper.searchCount(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(0L);
+        var result = listingService.search("kw", "cat", null, null, null, null, null, null, null, null, null, null, "price_asc", 1, 20);
         assertEquals(0, ((List<?>) result.get("items")).size());
         assertEquals(0L, result.get("total"));
     }

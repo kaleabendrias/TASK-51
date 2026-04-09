@@ -5,6 +5,7 @@ import com.booking.mapper.UserMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class UserService {
@@ -27,19 +28,31 @@ public class UserService {
         return userMapper.findByRoleId(2L);
     }
 
+    /**
+     * Patch-style selective update — only modifies fields present in the map.
+     * Never overwrites password_hash or encrypted phone.
+     */
+    public void patchUpdate(Long id, Map<String, Object> fields) {
+        User existing = userMapper.findById(id);
+        if (existing == null) throw new IllegalArgumentException("User not found");
+
+        if (fields.containsKey("email")) existing.setEmail((String) fields.get("email"));
+        if (fields.containsKey("fullName")) existing.setFullName((String) fields.get("fullName"));
+        if (fields.containsKey("roleId")) existing.setRoleId(((Number) fields.get("roleId")).longValue());
+        if (fields.containsKey("enabled")) existing.setEnabled((Boolean) fields.get("enabled"));
+        // phone and passwordHash are never overwritten through this path
+        userMapper.updateProfile(existing);
+    }
+
     public void update(User user) {
         User existing = userMapper.findById(user.getId());
-        if (existing == null) {
-            throw new IllegalArgumentException("User not found");
-        }
+        if (existing == null) throw new IllegalArgumentException("User not found");
         userMapper.update(user);
     }
 
     public void setEnabled(Long id, boolean enabled) {
         User existing = userMapper.findById(id);
-        if (existing == null) {
-            throw new IllegalArgumentException("User not found");
-        }
+        if (existing == null) throw new IllegalArgumentException("User not found");
         userMapper.updateEnabled(id, enabled);
     }
 }

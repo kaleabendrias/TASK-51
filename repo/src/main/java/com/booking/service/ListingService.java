@@ -34,18 +34,26 @@ public class ListingService {
         return listingMapper.findByPhotographerId(photographerId);
     }
 
+    private static final java.util.Set<String> VALID_SORTS = java.util.Set.of(
+            "newest", "price_asc", "price_desc", "rating", "duration");
+
     public Map<String, Object> search(String keyword, String category,
                                       BigDecimal minPrice, BigDecimal maxPrice,
-                                      String location, String theme, String transportMode,
+                                      String location, String locationState, String locationCity,
+                                      String locationNeighborhood,
+                                      String theme, String transportMode,
                                       BigDecimal minRating, String availableDate,
-                                      int page, int size) {
+                                      String sortBy, int page, int size) {
         int pageSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         int offset = Math.max(page - 1, 0) * pageSize;
+        String sort = (sortBy != null && VALID_SORTS.contains(sortBy)) ? sortBy : "newest";
 
         List<Listing> items = listingMapper.search(keyword, category, minPrice, maxPrice,
-                location, theme, transportMode, minRating, availableDate, offset, pageSize);
+                location, locationState, locationCity, locationNeighborhood,
+                theme, transportMode, minRating, availableDate, sort, offset, pageSize);
         long total = listingMapper.searchCount(keyword, category, minPrice, maxPrice,
-                location, theme, transportMode, minRating, availableDate);
+                location, locationState, locationCity, locationNeighborhood,
+                theme, transportMode, minRating, availableDate);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("items", items);

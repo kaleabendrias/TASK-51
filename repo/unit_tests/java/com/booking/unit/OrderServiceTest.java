@@ -27,6 +27,7 @@ class OrderServiceTest {
     @Mock NotificationService notificationService;
     @Mock PointsService pointsService;
     @Mock com.booking.mapper.PointsRuleMapper pointsRuleMapper;
+    @Mock com.booking.mapper.AddressMapper addressMapper;
     @InjectMocks OrderService orderService;
 
     private User customer, photographer, admin;

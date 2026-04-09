@@ -63,6 +63,12 @@
         WHERE id = #{id}
     </update>
 
+    <update id="updateProfile">
+        UPDATE users
+        SET email = #{email}, full_name = #{fullName}, role_id = #{roleId}, enabled = #{enabled}
+        WHERE id = #{id}
+    </update>
+
     <update id="updatePasswordHash">
         UPDATE users SET password_hash = #{passwordHash} WHERE id = #{id}
     </update>
