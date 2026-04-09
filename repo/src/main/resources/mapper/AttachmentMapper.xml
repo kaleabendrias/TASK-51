@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.AttachmentMapper">
+
+    <resultMap id="attachmentResult" type="Attachment">
+        <id property="id" column="id"/>
+        <result property="bookingId" column="booking_id"/>
+        <result property="fileName" column="file_name"/>
+        <result property="originalName" column="original_name"/>
+        <result property="contentType" column="content_type"/>
+        <result property="fileSize" column="file_size"/>
+        <result property="uploadedBy" column="uploaded_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="uploaderName" column="uploader_name"/>
+    </resultMap>
+
+    <select id="findById" resultMap="attachmentResult">
+        SELECT a.*, u.full_name AS uploader_name
+        FROM attachments a
+        JOIN users u ON a.uploaded_by = u.id
+        WHERE a.id = #{id}
+    </select>
+
+    <select id="findByBookingId" resultMap="attachmentResult">
+        SELECT a.*, u.full_name AS uploader_name
+        FROM attachments a
+        JOIN users u ON a.uploaded_by = u.id
+        WHERE a.booking_id = #{bookingId}
+        ORDER BY a.created_at DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO attachments (booking_id, file_name, original_name, content_type, file_size, uploaded_by)
+        VALUES (#{bookingId}, #{fileName}, #{originalName}, #{contentType}, #{fileSize}, #{uploadedBy})
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM attachments WHERE id = #{id}
+    </delete>
+</mapper>
