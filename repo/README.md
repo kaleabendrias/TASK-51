@@ -38,6 +38,8 @@ To reset all data: `docker compose down -v && docker compose up`
 
 All passwords are **`password123`**.
 
+> **WARNING: These are demo credentials for local development only. Never deploy to production with these users, passwords, or encryption keys. In production, rotate all secrets, disable seed accounts, and set `ENCRYPTION_KEY` to a cryptographically random value of at least 32 characters.**
+
 | Username | Role | ID | Purpose |
 |----------|------|----|---------|
 | `admin` | ADMINISTRATOR | 1 | Full system access, blacklist, points rules |

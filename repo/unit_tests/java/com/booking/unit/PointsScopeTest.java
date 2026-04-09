@@ -70,6 +70,17 @@ class PointsScopeTest {
         verify(ledgerMapper, times(1)).insert(any());
     }
 
+    @Test void classScopeAwardsAllInSameRole() {
+        when(ruleMapper.findByTrigger("EVT")).thenReturn(rule("CLASS", 8));
+        User trigger = new User(); trigger.setId(4L); trigger.setRoleId(1L); trigger.setRoleName("CUSTOMER");
+        User peer = new User(); peer.setId(5L); peer.setRoleId(1L);
+        when(userMapper.findById(4L)).thenReturn(trigger);
+        when(userMapper.findByRoleId(1L)).thenReturn(List.of(trigger, peer));
+        when(ledgerMapper.getBalance(anyLong())).thenReturn(0);
+        pointsService.awardByTrigger("EVT", 4L, "REF", 1L, "ctx");
+        verify(ledgerMapper, times(2)).insert(any());
+    }
+
     @Test void inactiveRuleSkipsAward() {
         PointsRule r = rule("INDIVIDUAL", 10); r.setActive(false);
         when(ruleMapper.findByTrigger("EVT")).thenReturn(r);

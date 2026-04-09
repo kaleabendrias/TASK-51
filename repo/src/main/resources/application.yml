@@ -42,4 +42,4 @@ management:
 app:
   upload-dir: /app/uploads
   session-timeout-minutes: 60
-  encryption-key: ${ENCRYPTION_KEY:BookingPortalSecretK}
+  encryption-key: ${ENCRYPTION_KEY}

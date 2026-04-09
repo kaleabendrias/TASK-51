@@ -49,15 +49,29 @@ public class MessageService {
             throw new IllegalArgumentException("Message content is required");
         }
 
-        // Photographers MUST link conversations to their own orders — no ad-hoc messaging
-        if ("PHOTOGRAPHER".equals(sender.getRoleName())) {
-            if (orderId == null) {
-                throw new IllegalArgumentException("Photographers must link conversations to a specific order");
-            }
+        // Chat is strictly confined to buyer + seller of a specific order
+        if (orderId != null) {
             Order order = orderMapper.findById(orderId);
-            if (order == null || !order.getPhotographerId().equals(sender.getId())) {
-                throw new SecurityException("Photographers can only message participants of their own orders");
+            if (order == null) {
+                throw new IllegalArgumentException("Order not found");
             }
+            // Sender must be either the customer or photographer on this order (or admin)
+            boolean isBuyer = order.getCustomerId().equals(sender.getId());
+            boolean isSeller = order.getPhotographerId().equals(sender.getId());
+            boolean isAdmin = "ADMINISTRATOR".equals(sender.getRoleName());
+            if (!isBuyer && !isSeller && !isAdmin) {
+                throw new SecurityException("Only the buyer or seller of this order can start a conversation");
+            }
+            // Recipient must be the other party on the order
+            boolean recipientIsBuyer = order.getCustomerId().equals(recipientId);
+            boolean recipientIsSeller = order.getPhotographerId().equals(recipientId);
+            if (!recipientIsBuyer && !recipientIsSeller) {
+                throw new SecurityException("Recipient is not a participant of this order");
+            }
+        }
+        // Photographers MUST link conversations to an order — no ad-hoc messaging
+        if ("PHOTOGRAPHER".equals(sender.getRoleName()) && orderId == null) {
+            throw new IllegalArgumentException("Photographers must link conversations to a specific order");
         }
 
         // Find or create conversation

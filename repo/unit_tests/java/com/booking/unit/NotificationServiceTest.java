@@ -22,6 +22,7 @@ class NotificationServiceTest {
     @Mock NotificationMapper notificationMapper;
     @Mock com.booking.mapper.NotificationPreferenceMapper prefMapper;
     @Mock UserMapper userMapper;
+    @Mock com.booking.service.NotificationDispatcher dispatcher;
     @InjectMocks NotificationService notificationService;
 
     @Test void queueEmailEncryptsRecipient() {

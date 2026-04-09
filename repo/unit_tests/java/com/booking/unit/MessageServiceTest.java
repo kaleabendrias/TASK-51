@@ -39,6 +39,9 @@ class MessageServiceTest {
     }
 
     @Test void sendMessageUsesExistingConversation() {
+        com.booking.domain.Order order = new com.booking.domain.Order();
+        order.setId(1L); order.setCustomerId(4L); order.setPhotographerId(2L);
+        when(orderMapper.findById(1L)).thenReturn(order);
         when(conversationMapper.findByParticipants(4L, 2L, 1L)).thenReturn(conv(4L, 2L));
         messageService.sendMessage(2L, "Hi", 1L, user(4L, "CUSTOMER"));
         verify(conversationMapper, never()).insert(any());

@@ -77,6 +77,20 @@ public class PointsService {
                             rule.getDescription() + " " + context);
                 }
             }
+            case "CLASS" -> {
+                // CLASS scope: awards to all users sharing the same role
+                User user = userMapper.findById(userId);
+                if (user != null && user.getRoleId() != null) {
+                    List<User> classUsers = userMapper.findByRoleId(user.getRoleId());
+                    for (User u : classUsers) {
+                        awardPoints(u.getId(), rule.getPoints(), rule.getName(), refType, refId,
+                                rule.getDescription() + " (class: " + user.getRoleName() + ") " + context);
+                    }
+                } else {
+                    awardPoints(userId, rule.getPoints(), rule.getName(), refType, refId,
+                            rule.getDescription() + " " + context);
+                }
+            }
             default -> awardPoints(userId, rule.getPoints(), rule.getName(), refType, refId,
                     rule.getDescription() + " " + context);
         }

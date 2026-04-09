@@ -191,35 +191,34 @@ const SearchPage={
  },
  doSearch(){
   const kw=$('#search-input').val();if(kw)Store.addSearchTerm(kw);
-  const loc=[$('#f-state').val(),$('#f-city').val(),$('#f-neighborhood').val()].filter(Boolean).join(', ');
   const params=new URLSearchParams();
   if(kw)params.set('keyword',kw);
   if($('#f-category').val())params.set('category',$('#f-category').val());
   if($('#f-min-price').val())params.set('minPrice',$('#f-min-price').val());
   if($('#f-max-price').val())params.set('maxPrice',$('#f-max-price').val());
-  if(loc)params.set('location',loc);
+  // Structured hierarchical destination (State → City → Neighborhood)
+  if($('#f-state').val())params.set('locationState',$('#f-state').val());
+  if($('#f-city').val())params.set('locationCity',$('#f-city').val());
+  if($('#f-neighborhood').val())params.set('locationNeighborhood',$('#f-neighborhood').val());
   // Wire new search dimensions
   if($('#f-theme').length&&$('#f-theme').val())params.set('theme',$('#f-theme').val());
   if($('#f-transport').length&&$('#f-transport').val())params.set('transportMode',$('#f-transport').val());
   if($('#f-min-rating').length&&$('#f-min-rating').val())params.set('minRating',$('#f-min-rating').val());
   if($('#f-avail-date').length&&$('#f-avail-date').val())params.set('availableDate',$('#f-avail-date').val());
+  // Server-side sort — map frontend names to underscore casing
+  const sortMap={'price-asc':'price_asc','price-desc':'price_desc','duration':'duration','rating':'rating','newest':'newest'};
+  const sortVal=$('#f-sort').val();
+  params.set('sortBy',sortMap[sortVal]||'newest');
   params.set('page',this.page);params.set('size',this.perPage);
   API.get('/api/listings/search?'+params.toString()).done(resp=>{
-   // Backend returns {items:[], page, size, total, totalPages}
-   this.results=this.sortResults(resp.items||[]);
+   // Backend returns {items:[], page, size, total, totalPages} — already sorted server-side
+   this.results=resp.items||[];
    this.totalFromServer=resp.total||0;
    this.totalPagesFromServer=resp.totalPages||1;
    this.renderResults();
   });
  },
- sortResults(items){
-  const s=$('#f-sort').val();
-  if(s==='price-asc')items.sort((a,b)=>a.price-b.price);
-  else if(s==='price-desc')items.sort((a,b)=>b.price-a.price);
-  else if(s==='duration')items.sort((a,b)=>a.durationMinutes-b.durationMinutes);
-  else if(s==='rating')items.sort((a,b)=>(b.rating||0)-(a.rating||0));
-  return items;
- },
+ // Sorting is handled server-side via sortBy parameter
  renderResults(){
   const grid=$('#listing-results').empty();
   const pageData=this.results;

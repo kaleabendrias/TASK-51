@@ -282,6 +282,15 @@ public class OrderService {
 
         Long oldSlotId = order.getTimeSlotId();
 
+        // Verify new slot belongs to the same listing as the order
+        com.booking.domain.TimeSlot newSlotCheck = timeSlotService.getById(newTimeSlotId);
+        if (newSlotCheck == null) {
+            throw new IllegalArgumentException("Time slot not found");
+        }
+        if (!newSlotCheck.getListingId().equals(order.getListingId())) {
+            throw new IllegalArgumentException("Cannot reschedule to a slot from a different listing");
+        }
+
         // Reserve new slot first
         try {
             timeSlotService.reserveSlot(newTimeSlotId);

@@ -22,6 +22,10 @@ public class TimeSlotService {
         this.listingMapper = listingMapper;
     }
 
+    public TimeSlot getById(Long id) {
+        return timeSlotMapper.findById(id);
+    }
+
     public List<TimeSlot> getByListing(Long listingId) {
         return timeSlotMapper.findByListingId(listingId);
     }

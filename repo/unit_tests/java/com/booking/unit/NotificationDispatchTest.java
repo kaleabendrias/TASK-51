@@ -20,17 +20,36 @@ class NotificationDispatchTest {
     @Mock NotificationMapper notificationMapper;
     @Mock com.booking.mapper.NotificationPreferenceMapper prefMapper;
     @Mock UserMapper userMapper;
+    @Mock com.booking.service.NotificationDispatcher dispatcher;
     @InjectMocks NotificationService notificationService;
 
     @BeforeAll static void setup() {
         com.booking.util.FieldEncryptor.configure("TestNotifKey1234!");
     }
 
-    @Test void processRetryQueueMarksAsSent() {
-        NotificationRecord r = new NotificationRecord(); r.setId(1L);
+    @Test void processRetryQueueMarksAsSentOnSuccess() {
+        NotificationRecord r = new NotificationRecord(); r.setId(1L); r.setRetryCount(0);
         when(notificationMapper.findQueued()).thenReturn(List.of(r));
+        when(dispatcher.dispatch(any())).thenReturn(true);
         notificationService.processRetryQueue();
         verify(notificationMapper).updateStatus(1L, "SENT");
+    }
+
+    @Test void processRetryQueueIncrementsOnFailure() {
+        NotificationRecord r = new NotificationRecord(); r.setId(1L); r.setRetryCount(0);
+        when(notificationMapper.findQueued()).thenReturn(List.of(r));
+        when(dispatcher.dispatch(any())).thenReturn(false);
+        notificationService.processRetryQueue();
+        verify(notificationMapper).incrementRetry(1L);
+        verify(notificationMapper).updateStatus(1L, "RETRY");
+    }
+
+    @Test void processRetryQueueTerminatesAfterMaxFailures() {
+        NotificationRecord r = new NotificationRecord(); r.setId(1L); r.setRetryCount(2);
+        when(notificationMapper.findQueued()).thenReturn(List.of(r));
+        when(dispatcher.dispatch(any())).thenReturn(false);
+        notificationService.processRetryQueue();
+        verify(notificationMapper).markTerminal(1L);
     }
 
     @Test void processRetryQueueHandlesEmpty() {

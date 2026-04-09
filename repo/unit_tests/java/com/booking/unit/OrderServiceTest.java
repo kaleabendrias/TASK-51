@@ -165,6 +165,7 @@ class OrderServiceTest {
         Order o = makeOrder("CREATED");
         TimeSlot newSlot = new TimeSlot(); newSlot.setId(5L); newSlot.setListingId(1L);
         when(orderMapper.findById(1L)).thenReturn(o).thenReturn(o);
+        when(timeSlotService.getById(5L)).thenReturn(newSlot);
         when(timeSlotService.reserveSlot(5L)).thenReturn(newSlot);
         orderService.reschedule(1L, 5L, customer);
         verify(timeSlotService).reserveSlot(5L);

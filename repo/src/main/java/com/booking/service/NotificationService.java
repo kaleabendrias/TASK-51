@@ -25,13 +25,16 @@ public class NotificationService {
     private final NotificationMapper notificationMapper;
     private final NotificationPreferenceMapper prefMapper;
     private final UserMapper userMapper;
+    private final NotificationDispatcher dispatcher;
 
     public NotificationService(NotificationMapper notificationMapper,
                                NotificationPreferenceMapper prefMapper,
-                               UserMapper userMapper) {
+                               UserMapper userMapper,
+                               NotificationDispatcher dispatcher) {
         this.notificationMapper = notificationMapper;
         this.prefMapper = prefMapper;
         this.userMapper = userMapper;
+        this.dispatcher = dispatcher;
     }
 
     public List<NotificationRecord> getByUser(Long userId) {
@@ -91,9 +94,7 @@ public class NotificationService {
     }
 
     private boolean attemptDispatch(NotificationRecord record) {
-        // Local-only queue: simulate dispatch — always succeeds for now
-        // In production, this would call an email/SMS gateway and return false on failure
-        return true;
+        return dispatcher.dispatch(record);
     }
 
     /**
