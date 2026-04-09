@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.PointsRuleMapper">
+    <select id="findById" resultType="PointsRule">
+        SELECT * FROM points_rules WHERE id = #{id}
+    </select>
+    <select id="findAll" resultType="PointsRule">
+        SELECT * FROM points_rules ORDER BY scope, name
+    </select>
+    <select id="findActive" resultType="PointsRule">
+        SELECT * FROM points_rules WHERE active = true ORDER BY scope, name
+    </select>
+    <select id="findByTrigger" resultType="PointsRule">
+        SELECT * FROM points_rules WHERE trigger_event = #{triggerEvent} AND active = true LIMIT 1
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO points_rules (name, description, points, scope, trigger_event, active)
+        VALUES (#{name}, #{description}, #{points}, #{scope}, #{triggerEvent}, #{active})
+    </insert>
+    <update id="update">
+        UPDATE points_rules SET name=#{name}, description=#{description}, points=#{points},
+            scope=#{scope}, trigger_event=#{triggerEvent}, active=#{active}
+        WHERE id = #{id}
+    </update>
+</mapper>

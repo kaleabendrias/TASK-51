@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.NotificationPreferenceMapper">
+    <select id="findByUserId" resultType="NotificationPreference">
+        SELECT * FROM notification_preferences WHERE user_id = #{userId}
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO notification_preferences (user_id, order_updates, holds, reminders, approvals, compliance, mute_non_critical)
+        VALUES (#{userId}, #{orderUpdates}, #{holds}, #{reminders}, #{approvals}, true, #{muteNonCritical})
+    </insert>
+    <update id="update">
+        UPDATE notification_preferences
+        SET order_updates=#{orderUpdates}, holds=#{holds}, reminders=#{reminders},
+            approvals=#{approvals}, compliance=true, mute_non_critical=#{muteNonCritical}
+        WHERE user_id = #{userId}
+    </update>
+</mapper>

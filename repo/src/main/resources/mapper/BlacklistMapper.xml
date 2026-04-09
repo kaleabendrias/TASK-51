@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.BlacklistMapper">
+
+    <resultMap id="blResult" type="BlacklistEntry">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="reason" column="reason"/>
+        <result property="blacklistedBy" column="blacklisted_by"/>
+        <result property="durationDays" column="duration_days"/>
+        <result property="startsAt" column="starts_at"/>
+        <result property="expiresAt" column="expires_at"/>
+        <result property="active" column="active"/>
+        <result property="liftedBy" column="lifted_by"/>
+        <result property="liftedAt" column="lifted_at"/>
+        <result property="liftReason" column="lift_reason"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="userName" column="user_name"/>
+        <result property="blacklistedByName" column="blacklisted_by_name"/>
+        <result property="liftedByName" column="lifted_by_name"/>
+    </resultMap>
+
+    <sql id="selectBl">
+        SELECT bl.*,
+               u.full_name AS user_name,
+               admin.full_name AS blacklisted_by_name,
+               lifter.full_name AS lifted_by_name
+        FROM blacklist bl
+        JOIN users u ON bl.user_id = u.id
+        JOIN users admin ON bl.blacklisted_by = admin.id
+        LEFT JOIN users lifter ON bl.lifted_by = lifter.id
+    </sql>
+
+    <select id="findById" resultMap="blResult">
+        <include refid="selectBl"/> WHERE bl.id = #{id}
+    </select>
+
+    <select id="findActiveByUserId" resultMap="blResult">
+        <include refid="selectBl"/> WHERE bl.user_id = #{userId} AND bl.active = true LIMIT 1
+    </select>
+
+    <select id="findAll" resultMap="blResult">
+        <include refid="selectBl"/> ORDER BY bl.created_at DESC
+    </select>
+
+    <select id="findExpiredActive" resultMap="blResult">
+        <include refid="selectBl"/> WHERE bl.active = true AND bl.expires_at &lt; #{now}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO blacklist (user_id, reason, blacklisted_by, duration_days, starts_at, expires_at, active)
+        VALUES (#{userId}, #{reason}, #{blacklistedBy}, #{durationDays}, #{startsAt}, #{expiresAt}, true)
+    </insert>
+
+    <update id="deactivate">
+        UPDATE blacklist SET active = false, lifted_by = #{liftedBy},
+            lifted_at = CURRENT_TIMESTAMP, lift_reason = #{liftReason}
+        WHERE id = #{id}
+    </update>
+</mapper>

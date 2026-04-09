@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.OrderMapper">
+
+    <resultMap id="orderResult" type="Order">
+        <id property="id" column="id"/>
+        <result property="orderNumber" column="order_number"/>
+        <result property="customerId" column="customer_id"/>
+        <result property="photographerId" column="photographer_id"/>
+        <result property="listingId" column="listing_id"/>
+        <result property="timeSlotId" column="time_slot_id"/>
+        <result property="status" column="status"/>
+        <result property="totalPrice" column="total_price"/>
+        <result property="paidAmount" column="paid_amount"/>
+        <result property="paymentReference" column="payment_reference"/>
+        <result property="cancelReason" column="cancel_reason"/>
+        <result property="refundAmount" column="refund_amount"/>
+        <result property="rescheduleFromId" column="reschedule_from_id"/>
+        <result property="addressId" column="address_id"/>
+        <result property="notes" column="notes"/>
+        <result property="paymentDeadline" column="payment_deadline"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="customerName" column="customer_name"/>
+        <result property="photographerName" column="photographer_name"/>
+        <result property="listingTitle" column="listing_title"/>
+        <result property="slotDate" column="slot_date"/>
+        <result property="slotTime" column="slot_time"/>
+    </resultMap>
+
+    <sql id="selectOrder">
+        SELECT o.*,
+               c.full_name AS customer_name,
+               p.full_name AS photographer_name,
+               l.title AS listing_title,
+               CAST(ts.slot_date AS CHAR) AS slot_date,
+               CONCAT(ts.start_time, ' - ', ts.end_time) AS slot_time
+        FROM orders o
+        JOIN users c ON o.customer_id = c.id
+        JOIN users p ON o.photographer_id = p.id
+        JOIN listings l ON o.listing_id = l.id
+        JOIN time_slots ts ON o.time_slot_id = ts.id
+    </sql>
+
+    <select id="findById" resultMap="orderResult">
+        <include refid="selectOrder"/> WHERE o.id = #{id}
+    </select>
+
+    <select id="findByOrderNumber" resultMap="orderResult">
+        <include refid="selectOrder"/> WHERE o.order_number = #{orderNumber}
+    </select>
+
+    <select id="findByCustomerId" resultMap="orderResult">
+        <include refid="selectOrder"/> WHERE o.customer_id = #{customerId} ORDER BY o.created_at DESC
+    </select>
+
+    <select id="findByPhotographerId" resultMap="orderResult">
+        <include refid="selectOrder"/> WHERE o.photographer_id = #{photographerId} ORDER BY o.created_at DESC
+    </select>
+
+    <select id="findAll" resultMap="orderResult">
+        <include refid="selectOrder"/> ORDER BY o.created_at DESC
+    </select>
+
+    <select id="findByStatus" resultMap="orderResult">
+        <include refid="selectOrder"/> WHERE o.status = #{status} ORDER BY o.created_at DESC
+    </select>
+
+    <select id="findUnpaidExpired" resultMap="orderResult">
+        <include refid="selectOrder"/>
+        WHERE o.status = 'CREATED'
+          AND o.payment_deadline IS NOT NULL
+          AND o.payment_deadline &lt; #{now}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO orders (order_number, customer_id, photographer_id, listing_id, time_slot_id,
+                            status, total_price, paid_amount, payment_reference, cancel_reason,
+                            refund_amount, reschedule_from_id, address_id, notes, payment_deadline)
+        VALUES (#{orderNumber}, #{customerId}, #{photographerId}, #{listingId}, #{timeSlotId},
+                #{status}, #{totalPrice}, #{paidAmount}, #{paymentReference}, #{cancelReason},
+                #{refundAmount}, #{rescheduleFromId}, #{addressId}, #{notes}, #{paymentDeadline})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE orders SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <update id="update">
+        UPDATE orders SET status=#{status}, paid_amount=#{paidAmount},
+            payment_reference=#{paymentReference}, cancel_reason=#{cancelReason},
+            refund_amount=#{refundAmount}, reschedule_from_id=#{rescheduleFromId},
+            address_id=#{addressId}, notes=#{notes}, time_slot_id=#{timeSlotId}
+        WHERE id = #{id}
+    </update>
+
+    <select id="countByCustomerId" resultType="long">
+        SELECT COUNT(*) FROM orders WHERE customer_id = #{customerId} AND status = 'COMPLETED'
+    </select>
+</mapper>

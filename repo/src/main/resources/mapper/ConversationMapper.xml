@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.ConversationMapper">
+
+    <resultMap id="convResult" type="Conversation">
+        <id property="id" column="id"/>
+        <result property="participantOne" column="participant_one"/>
+        <result property="participantTwo" column="participant_two"/>
+        <result property="orderId" column="order_id"/>
+        <result property="lastMessageAt" column="last_message_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="participantOneName" column="p1_name"/>
+        <result property="participantTwoName" column="p2_name"/>
+    </resultMap>
+
+    <sql id="selectConv">
+        SELECT c.*, u1.full_name AS p1_name, u2.full_name AS p2_name
+        FROM conversations c
+        JOIN users u1 ON c.participant_one = u1.id
+        JOIN users u2 ON c.participant_two = u2.id
+    </sql>
+
+    <select id="findById" resultMap="convResult">
+        <include refid="selectConv"/> WHERE c.id = #{id}
+    </select>
+
+    <select id="findByUserId" resultMap="convResult">
+        <include refid="selectConv"/>
+        WHERE c.participant_one = #{userId} OR c.participant_two = #{userId}
+        ORDER BY CASE WHEN c.last_message_at IS NULL THEN 1 ELSE 0 END, c.last_message_at DESC
+    </select>
+
+    <select id="findByParticipants" resultMap="convResult">
+        <include refid="selectConv"/>
+        WHERE ((c.participant_one = #{p1} AND c.participant_two = #{p2})
+            OR (c.participant_one = #{p2} AND c.participant_two = #{p1}))
+        <if test="orderId != null">AND c.order_id = #{orderId}</if>
+        <if test="orderId == null">AND c.order_id IS NULL</if>
+        LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO conversations (participant_one, participant_two, order_id)
+        VALUES (#{participantOne}, #{participantTwo}, #{orderId})
+    </insert>
+
+    <update id="updateLastMessageAt">
+        UPDATE conversations SET last_message_at = CURRENT_TIMESTAMP WHERE id = #{id}
+    </update>
+</mapper>

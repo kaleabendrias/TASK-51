@@ -14,6 +14,7 @@
         <result property="enabled" column="enabled"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
+        <result property="pointsBalance" column="points_balance"/>
         <result property="roleName" column="role_name"/>
     </resultMap>
 

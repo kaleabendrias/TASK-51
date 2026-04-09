@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.MessageMapper">
+
+    <resultMap id="msgResult" type="Message">
+        <id property="id" column="id"/>
+        <result property="conversationId" column="conversation_id"/>
+        <result property="senderId" column="sender_id"/>
+        <result property="content" column="content"/>
+        <result property="readAt" column="read_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="senderName" column="sender_name"/>
+    </resultMap>
+
+    <select id="findByConversationId" resultMap="msgResult">
+        SELECT m.*, u.full_name AS sender_name
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.conversation_id = #{conversationId}
+        ORDER BY m.created_at ASC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO messages (conversation_id, sender_id, content)
+        VALUES (#{conversationId}, #{senderId}, #{content})
+    </insert>
+
+    <update id="markRead">
+        UPDATE messages SET read_at = CURRENT_TIMESTAMP
+        WHERE conversation_id = #{conversationId} AND sender_id != #{userId} AND read_at IS NULL
+    </update>
+
+    <select id="countUnread" resultType="int">
+        SELECT COUNT(*) FROM messages
+        WHERE conversation_id = #{conversationId} AND sender_id != #{userId} AND read_at IS NULL
+    </select>
+</mapper>

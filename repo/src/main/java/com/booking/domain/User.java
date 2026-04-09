@@ -15,6 +15,8 @@ public class User {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    private Integer pointsBalance;
+
     // Joined field
     private String roleName;
 
@@ -41,6 +43,8 @@ public class User {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Integer getPointsBalance() { return pointsBalance; }
+    public void setPointsBalance(Integer pointsBalance) { this.pointsBalance = pointsBalance; }
     public String getRoleName() { return roleName; }
     public void setRoleName(String roleName) { this.roleName = roleName; }
 }

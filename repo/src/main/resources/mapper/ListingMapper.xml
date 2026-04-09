@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.ListingMapper">
+
+    <resultMap id="listingResult" type="Listing">
+        <id property="id" column="id"/>
+        <result property="photographerId" column="photographer_id"/>
+        <result property="title" column="title"/>
+        <result property="description" column="description"/>
+        <result property="category" column="category"/>
+        <result property="price" column="price"/>
+        <result property="durationMinutes" column="duration_minutes"/>
+        <result property="location" column="location"/>
+        <result property="maxConcurrent" column="max_concurrent"/>
+        <result property="active" column="active"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="photographerName" column="photographer_name"/>
+    </resultMap>
+
+    <sql id="selectListing">
+        SELECT l.*, u.full_name AS photographer_name
+        FROM listings l
+        JOIN users u ON l.photographer_id = u.id
+    </sql>
+
+    <select id="findById" resultMap="listingResult">
+        <include refid="selectListing"/> WHERE l.id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="listingResult">
+        <include refid="selectListing"/> ORDER BY l.created_at DESC
+    </select>
+
+    <select id="findActive" resultMap="listingResult">
+        <include refid="selectListing"/> WHERE l.active = true ORDER BY l.created_at DESC
+    </select>
+
+    <select id="findByPhotographerId" resultMap="listingResult">
+        <include refid="selectListing"/> WHERE l.photographer_id = #{photographerId} ORDER BY l.created_at DESC
+    </select>
+
+    <select id="search" resultMap="listingResult">
+        <include refid="selectListing"/>
+        WHERE l.active = true
+        <if test="keyword != null and keyword != ''">
+            AND (l.title LIKE CONCAT('%',#{keyword},'%') OR l.description LIKE CONCAT('%',#{keyword},'%'))
+        </if>
+        <if test="category != null and category != ''">
+            AND l.category = #{category}
+        </if>
+        <if test="minPrice != null">
+            AND l.price &gt;= #{minPrice}
+        </if>
+        <if test="maxPrice != null">
+            AND l.price &lt;= #{maxPrice}
+        </if>
+        <if test="location != null and location != ''">
+            AND l.location LIKE CONCAT('%',#{location},'%')
+        </if>
+        ORDER BY l.created_at DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO listings (photographer_id, title, description, category, price, duration_minutes, location, max_concurrent, active)
+        VALUES (#{photographerId}, #{title}, #{description}, #{category}, #{price}, #{durationMinutes}, #{location}, #{maxConcurrent}, #{active})
+    </insert>
+
+    <update id="update">
+        UPDATE listings SET title=#{title}, description=#{description}, category=#{category},
+            price=#{price}, duration_minutes=#{durationMinutes}, location=#{location},
+            max_concurrent=#{maxConcurrent}, active=#{active}
+        WHERE id = #{id}
+    </update>
+</mapper>

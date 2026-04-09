@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.PointsLedgerMapper">
+
+    <select id="findByUserId" resultType="PointsLedgerEntry">
+        SELECT * FROM points_ledger WHERE user_id = #{userId} ORDER BY created_at DESC
+    </select>
+
+    <select id="getBalance" resultType="int">
+        SELECT COALESCE(points_balance, 0) FROM users WHERE id = #{userId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO points_ledger (user_id, points, balance_after, action, reference_type, reference_id, description)
+        VALUES (#{userId}, #{points}, #{balanceAfter}, #{action}, #{referenceType}, #{referenceId}, #{description})
+    </insert>
+
+    <update id="updateUserBalance">
+        UPDATE users SET points_balance = #{balance} WHERE id = #{userId}
+    </update>
+
+    <select id="getLeaderboard" resultType="java.util.Map">
+        SELECT u.id AS userId, u.full_name AS fullName, u.username,
+               COALESCE(u.points_balance, 0) AS points,
+               COUNT(CASE WHEN pl.action = 'ORDER_COMPLETED' THEN 1 END) AS completionCount,
+               MIN(CASE WHEN pl.action = 'ORDER_COMPLETED' THEN pl.created_at END) AS earliestCompletion
+        FROM users u
+        LEFT JOIN points_ledger pl ON u.id = pl.user_id
+        GROUP BY u.id, u.full_name, u.username, u.points_balance
+        ORDER BY points DESC, completionCount DESC, earliestCompletion ASC
+        LIMIT 50
+    </select>
+</mapper>

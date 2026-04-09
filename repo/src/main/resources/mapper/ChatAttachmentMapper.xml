@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.ChatAttachmentMapper">
+    <select id="findById" resultType="ChatAttachment">
+        SELECT * FROM chat_attachments WHERE id = #{id}
+    </select>
+    <select id="findByMessageId" resultType="ChatAttachment">
+        SELECT * FROM chat_attachments WHERE message_id = #{messageId}
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO chat_attachments (message_id, file_name, original_name, content_type, file_size)
+        VALUES (#{messageId}, #{fileName}, #{originalName}, #{contentType}, #{fileSize})
+    </insert>
+</mapper>

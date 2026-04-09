@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.OrderActionMapper">
+
+    <resultMap id="actionResult" type="OrderAction">
+        <id property="id" column="id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="action" column="action"/>
+        <result property="fromStatus" column="from_status"/>
+        <result property="toStatus" column="to_status"/>
+        <result property="performedBy" column="performed_by"/>
+        <result property="detail" column="detail"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="performedByName" column="performed_by_name"/>
+    </resultMap>
+
+    <select id="findByOrderId" resultMap="actionResult">
+        SELECT oa.*, u.full_name AS performed_by_name
+        FROM order_actions oa
+        JOIN users u ON oa.performed_by = u.id
+        WHERE oa.order_id = #{orderId}
+        ORDER BY oa.created_at
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO order_actions (order_id, action, from_status, to_status, performed_by, detail)
+        VALUES (#{orderId}, #{action}, #{fromStatus}, #{toStatus}, #{performedBy}, #{detail})
+    </insert>
+</mapper>

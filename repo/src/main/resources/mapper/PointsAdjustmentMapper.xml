@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.PointsAdjustmentMapper">
+    <resultMap id="adjResult" type="PointsAdjustment">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="adjustedBy" column="adjusted_by"/>
+        <result property="points" column="points"/>
+        <result property="reason" column="reason"/>
+        <result property="balanceBefore" column="balance_before"/>
+        <result property="balanceAfter" column="balance_after"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="userName" column="user_name"/>
+        <result property="adjustedByName" column="adjusted_by_name"/>
+    </resultMap>
+    <select id="findByUserId" resultMap="adjResult">
+        SELECT pa.*, u.full_name AS user_name, a.full_name AS adjusted_by_name
+        FROM points_adjustments pa
+        JOIN users u ON pa.user_id = u.id
+        JOIN users a ON pa.adjusted_by = a.id
+        WHERE pa.user_id = #{userId} ORDER BY pa.created_at DESC
+    </select>
+    <select id="findAll" resultMap="adjResult">
+        SELECT pa.*, u.full_name AS user_name, a.full_name AS adjusted_by_name
+        FROM points_adjustments pa
+        JOIN users u ON pa.user_id = u.id
+        JOIN users a ON pa.adjusted_by = a.id
+        ORDER BY pa.created_at DESC
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO points_adjustments (user_id, adjusted_by, points, reason, balance_before, balance_after)
+        VALUES (#{userId}, #{adjustedBy}, #{points}, #{reason}, #{balanceBefore}, #{balanceAfter})
+    </insert>
+</mapper>

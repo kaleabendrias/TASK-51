@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.AddressMapper">
+
+    <select id="findById" resultType="Address">
+        SELECT * FROM addresses WHERE id = #{id}
+    </select>
+
+    <select id="findByUserId" resultType="Address">
+        SELECT * FROM addresses WHERE user_id = #{userId} ORDER BY is_default DESC, created_at DESC
+    </select>
+
+    <select id="findDefaultByUserId" resultType="Address">
+        SELECT * FROM addresses WHERE user_id = #{userId} AND is_default = true LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO addresses (user_id, label, street, city, state, postal_code, country, is_default)
+        VALUES (#{userId}, #{label}, #{street}, #{city}, #{state}, #{postalCode}, #{country}, #{isDefault})
+    </insert>
+
+    <update id="update">
+        UPDATE addresses SET label=#{label}, street=#{street}, city=#{city}, state=#{state},
+            postal_code=#{postalCode}, country=#{country}, is_default=#{isDefault}
+        WHERE id = #{id}
+    </update>
+
+    <update id="clearDefault">
+        UPDATE addresses SET is_default = false WHERE user_id = #{userId}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM addresses WHERE id = #{id}
+    </delete>
+</mapper>
