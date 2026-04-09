@@ -13,13 +13,16 @@ public class ScheduledTaskService {
     private final OrderService orderService;
     private final BlacklistService blacklistService;
     private final IdempotencyService idempotencyService;
+    private final NotificationService notificationService;
 
     public ScheduledTaskService(OrderService orderService,
                                 BlacklistService blacklistService,
-                                IdempotencyService idempotencyService) {
+                                IdempotencyService idempotencyService,
+                                NotificationService notificationService) {
         this.orderService = orderService;
         this.blacklistService = blacklistService;
         this.idempotencyService = idempotencyService;
+        this.notificationService = notificationService;
     }
 
     // Auto-close unpaid orders every 2 minutes
@@ -41,6 +44,17 @@ public class ScheduledTaskService {
             blacklistService.autoLiftExpired();
         } catch (Exception e) {
             log.error("Error in auto-lift blacklists", e);
+        }
+    }
+
+    // Process notification retry queue every 3 minutes
+    @Scheduled(fixedRate = 180_000, initialDelay = 90_000)
+    public void processNotificationRetries() {
+        log.debug("Running notification retry dispatcher");
+        try {
+            notificationService.processRetryQueue();
+        } catch (Exception e) {
+            log.error("Error in notification retry dispatcher", e);
         }
     }
 

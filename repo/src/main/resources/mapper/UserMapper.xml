@@ -70,4 +70,16 @@
     <update id="updateEnabled">
         UPDATE users SET enabled = #{enabled} WHERE id = #{id}
     </update>
+
+    <update id="updatePhone">
+        UPDATE users SET phone = #{phone} WHERE id = #{id}
+    </update>
+
+    <select id="findByDepartment" resultMap="userResult">
+        <include refid="selectUser"/> WHERE u.department = #{department}
+    </select>
+
+    <select id="findByTeam" resultMap="userResult">
+        <include refid="selectUser"/> WHERE u.team = #{team}
+    </select>
 </mapper>

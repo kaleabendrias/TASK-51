@@ -42,6 +42,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/booking_portal?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: booking_user
       SPRING_DATASOURCE_PASSWORD: booking_pass_2024
+      ENCRYPTION_KEY: BookingPortalProdKey2024SecureRotate
     volumes:
       - uploads-data:/app/uploads
     healthcheck:

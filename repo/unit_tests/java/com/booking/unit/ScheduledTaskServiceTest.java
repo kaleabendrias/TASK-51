@@ -14,6 +14,7 @@ class ScheduledTaskServiceTest {
     @Mock OrderService orderService;
     @Mock BlacklistService blacklistService;
     @Mock IdempotencyService idempotencyService;
+    @Mock NotificationService notificationService;
     @InjectMocks ScheduledTaskService scheduledTaskService;
 
     @Test void closeUnpaidOrdersCallsService() {
@@ -44,5 +45,15 @@ class ScheduledTaskServiceTest {
     @Test void cleanupTokensSwallowsExceptions() {
         doThrow(new RuntimeException("boom")).when(idempotencyService).cleanupExpired();
         scheduledTaskService.cleanupIdempotencyTokens(); // should not throw
+    }
+
+    @Test void notificationRetryCallsService() {
+        scheduledTaskService.processNotificationRetries();
+        verify(notificationService).processRetryQueue();
+    }
+
+    @Test void notificationRetrySwallowsExceptions() {
+        doThrow(new RuntimeException("boom")).when(notificationService).processRetryQueue();
+        scheduledTaskService.processNotificationRetries(); // should not throw
     }
 }

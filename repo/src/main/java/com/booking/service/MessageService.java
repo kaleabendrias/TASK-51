@@ -49,8 +49,11 @@ public class MessageService {
             throw new IllegalArgumentException("Message content is required");
         }
 
-        // Photographers can only initiate conversations with their own order customers
-        if ("PHOTOGRAPHER".equals(sender.getRoleName()) && orderId != null) {
+        // Photographers MUST link conversations to their own orders — no ad-hoc messaging
+        if ("PHOTOGRAPHER".equals(sender.getRoleName())) {
+            if (orderId == null) {
+                throw new IllegalArgumentException("Photographers must link conversations to a specific order");
+            }
             Order order = orderMapper.findById(orderId);
             if (order == null || !order.getPhotographerId().equals(sender.getId())) {
                 throw new SecurityException("Photographers can only message participants of their own orders");

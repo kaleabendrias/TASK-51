@@ -17,4 +17,7 @@ public interface UserMapper {
     void update(User user);
     void updateEnabled(@Param("id") Long id, @Param("enabled") Boolean enabled);
     void updatePasswordHash(@Param("id") Long id, @Param("passwordHash") String passwordHash);
+    void updatePhone(@Param("id") Long id, @Param("phone") String phone);
+    List<User> findByDepartment(@Param("department") String department);
+    List<User> findByTeam(@Param("team") String team);
 }

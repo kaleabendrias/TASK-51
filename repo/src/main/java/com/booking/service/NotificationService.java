@@ -113,6 +113,27 @@ public class NotificationService {
         queueEmail(order.getPhotographerId(), subject, formatted, "ORDER", order.getId());
     }
 
+    public void processRetryQueue() {
+        List<NotificationRecord> queued = notificationMapper.findQueued();
+        for (NotificationRecord r : queued) {
+            // Simulate dispatch attempt — in a real system this would call an email/SMS gateway
+            // For local-only queuing, mark as processed
+            notificationMapper.updateStatus(r.getId(), "SENT");
+        }
+    }
+
+    public void queueHoldNotification(Long userId, String orderNumber, String reason) {
+        queueEmail(userId, "HOLD: " + orderNumber,
+                String.format("A hold has been placed on order %s. Reason: %s", orderNumber, reason),
+                "HOLD", null);
+    }
+
+    public void queueOverdueNotification(Long userId, String orderNumber) {
+        queueEmail(userId, "OVERDUE: " + orderNumber,
+                String.format("Order %s payment is overdue. Please complete payment to avoid cancellation.", orderNumber),
+                "OVERDUE", null);
+    }
+
     private String maskRecipient(String channel, String encrypted) {
         if (encrypted == null) return "***";
         try {

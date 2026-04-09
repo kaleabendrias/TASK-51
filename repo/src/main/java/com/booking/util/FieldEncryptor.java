@@ -14,8 +14,6 @@ public final class FieldEncryptor {
     private static final int IV_LENGTH = 12;
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    // Key loaded from config; defaults to a fallback for dev/test only
-    private static volatile byte[] keyBytes;
     private static volatile SecretKeySpec keySpec;
 
     private FieldEncryptor() {}
@@ -24,20 +22,22 @@ public final class FieldEncryptor {
         if (key == null || key.length() < 16) {
             throw new IllegalArgumentException("Encryption key must be at least 16 characters");
         }
-        // Pad or trim to exactly 16 bytes for AES-128
         byte[] raw = key.getBytes(StandardCharsets.UTF_8);
         byte[] sized = new byte[16];
         System.arraycopy(raw, 0, sized, 0, Math.min(raw.length, 16));
-        keyBytes = sized;
         keySpec = new SecretKeySpec(sized, "AES");
     }
 
     private static SecretKeySpec getKeySpec() {
         if (keySpec == null) {
-            // Fallback for tests / unconfigured — not for production
-            configure("BookingPortal32!");
+            throw new IllegalStateException(
+                "Encryption key not configured. Set ENCRYPTION_KEY environment variable or app.encryption-key property.");
         }
         return keySpec;
+    }
+
+    public static boolean isConfigured() {
+        return keySpec != null;
     }
 
     public static String encrypt(String plaintext) {

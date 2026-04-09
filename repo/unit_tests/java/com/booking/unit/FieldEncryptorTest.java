@@ -1,13 +1,17 @@
 package com.booking.unit;
 
 import com.booking.util.FieldEncryptor;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class FieldEncryptorTest {
 
-    @Test
-    void encryptDecryptRoundTrip() {
+    @BeforeAll static void setup() {
+        FieldEncryptor.configure("TestKeyForUnit16!");
+    }
+
+    @Test void encryptDecryptRoundTrip() {
         String original = "alice@example.com";
         String encrypted = FieldEncryptor.encrypt(original);
         assertNotNull(encrypted);
@@ -15,33 +19,37 @@ class FieldEncryptorTest {
         assertEquals(original, FieldEncryptor.decrypt(encrypted));
     }
 
-    @Test
-    void encryptProducesDifferentCiphertextsEachTime() {
+    @Test void encryptProducesDifferentCiphertextsEachTime() {
         String a = FieldEncryptor.encrypt("test");
         String b = FieldEncryptor.encrypt("test");
         assertNotEquals(a, b, "Different IVs should produce different ciphertexts");
     }
 
-    @Test
-    void encryptNullReturnsNull() {
+    @Test void encryptNullReturnsNull() {
         assertNull(FieldEncryptor.encrypt(null));
         assertNull(FieldEncryptor.decrypt(null));
     }
 
-    @Test
-    void decryptGarbageThrows() {
+    @Test void decryptGarbageThrows() {
         assertThrows(RuntimeException.class, () -> FieldEncryptor.decrypt("not-valid-base64!!!"));
     }
 
-    @Test
-    void encryptEmptyString() {
+    @Test void encryptEmptyString() {
         String enc = FieldEncryptor.encrypt("");
         assertEquals("", FieldEncryptor.decrypt(enc));
     }
 
-    @Test
-    void encryptSpecialChars() {
+    @Test void encryptSpecialChars() {
         String input = "héllo+wörld@特殊.com";
         assertEquals(input, FieldEncryptor.decrypt(FieldEncryptor.encrypt(input)));
+    }
+
+    @Test void unconfiguredThrows() {
+        // FieldEncryptor.isConfigured() should be true after BeforeAll
+        assertTrue(FieldEncryptor.isConfigured());
+    }
+
+    @Test void configureWithShortKeyThrows() {
+        assertThrows(IllegalArgumentException.class, () -> FieldEncryptor.configure("short"));
     }
 }

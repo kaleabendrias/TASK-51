@@ -14,17 +14,19 @@ const US_STATES=['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL
 
 // ---- API Client ----
 const API={
- _json(method,url,data){
-  const opts={method,url,contentType:'application/json',xhrFields:{withCredentials:true}};
+ _json(method,url,data,headers){
+  const opts={method,url,contentType:'application/json',xhrFields:{withCredentials:true},headers:headers||{}};
   if(data&&method!=='GET')opts.data=JSON.stringify(data);
   return $.ajax(opts);
  },
  get(u){return this._json('GET',u)},
- post(u,d){return this._json('POST',u,d)},
- put(u,d){return this._json('PUT',u,d)},
- patch(u,d){return this._json('PATCH',u,d)},
+ post(u,d,h){return this._json('POST',u,d,h)},
+ put(u,d,h){return this._json('PUT',u,d,h)},
+ patch(u,d,h){return this._json('PATCH',u,d,h)},
  del(u){return this._json('DELETE',u)},
- upload(url,formData){return $.ajax({url,method:'POST',data:formData,processData:false,contentType:false,xhrFields:{withCredentials:true}})}
+ upload(url,formData){return $.ajax({url,method:'POST',data:formData,processData:false,contentType:false,xhrFields:{withCredentials:true}})},
+ // Generate a unique idempotency key header
+ idemHeader(){return {'Idempotency-Key':'idem-'+Date.now()+'-'+Math.random().toString(36).substr(2,8)}}
 };
 
 // ---- Form Validation ----
@@ -266,8 +268,20 @@ const ListingDetailPage={
    </div>
    <div class="card"><div class="card-header"><h2>Available Time Slots</h2></div>
     <div class="table-wrap"><table id="slots-table"><thead><tr><th>Date</th><th>Time</th><th>Available</th><th></th></tr></thead><tbody></tbody></table></div>
+   </div>
+   <div class="card" id="booking-options" style="display:none">
+    <h3 class="mb-1">Booking Options</h3>
+    <div class="form-row">
+     <div class="form-group"><label>Delivery Mode</label><select class="form-control" id="bo-delivery"><option value="ONSITE">On-site (attend in person)</option><option value="PICKUP">Pickup (collect finished work)</option><option value="COURIER">Courier (deliver to address)</option></select></div>
+     <div class="form-group" id="bo-addr-group" style="display:none"><label>Delivery Address</label><select class="form-control" id="bo-address"></select></div>
+    </div>
+    <button class="btn btn-primary" id="bo-confirm-btn">Confirm Booking</button>
    </div>`);
    $('#back-search').on('click',()=>App.navigate('search'));
+   $('#bo-delivery').on('change',function(){
+    if($(this).val()==='COURIER'){$('#bo-addr-group').show();API.get('/api/addresses').done(addrs=>{const sel=$('#bo-address').empty();addrs.forEach(a=>sel.append(`<option value="${a.id}">${a.label}: ${a.street}, ${a.city}</option>`))})}
+    else{$('#bo-addr-group').hide()}
+   });
    API.get(`/api/timeslots/listing/${l.id}/available?start=${now}&end=${future}`).done(slots=>{
     const tb=$('#slots-table tbody');
     if(!slots.length){tb.append('<tr><td colspan="4" class="text-muted text-center">No available slots in the next 30 days</td></tr>');return}
@@ -282,12 +296,21 @@ const ListingDetailPage={
   });
  },
  bookSlot(listingId,slotId,price){
-  // Quick booking with confirmation
-  if(!confirm(`Confirm booking for $${price}? You will have 30 minutes to complete payment.`))return;
-  API.post('/api/orders',{listingId,timeSlotId:slotId}).done(order=>{
-   alert('Order '+order.orderNumber+' created! Payment due within 30 minutes.');
-   OrderDetailPage.orderId=order.id;App.navigate('order-detail');
-  }).fail(xhr=>alert(xhr.responseJSON?xhr.responseJSON.error:'Booking failed'));
+  // Show booking options panel instead of immediate confirm
+  this._pendingSlot={listingId,slotId,price};
+  $('#booking-options').show();
+  $('html,body').animate({scrollTop:$('#booking-options').offset().top-80},300);
+  $('#bo-confirm-btn').off('click').on('click',()=>{
+   const mode=$('#bo-delivery').val();
+   const addrId=mode==='COURIER'?parseInt($('#bo-address').val()):null;
+   if(mode==='COURIER'&&!addrId){alert('Please select a delivery address');return}
+   const body={listingId,timeSlotId:slotId,deliveryMode:mode};
+   if(addrId)body.addressId=addrId;
+   API.post('/api/orders',body,API.idemHeader()).done(order=>{
+    alert('Order '+order.orderNumber+' created! Payment due within 30 minutes.');
+    OrderDetailPage.orderId=order.id;App.navigate('order-detail');
+   }).fail(xhr=>alert(xhr.responseJSON?xhr.responseJSON.error:'Booking failed'));
+  });
  }
 };
 
@@ -376,17 +399,17 @@ const OrderDetailPage={
   acts.find('button').on('click',function(){OrderDetailPage.doAction(o,$(this).data('act'))});
  },
  doAction(order,act){
-  const key='idem-'+uuid();
-  if(act==='confirm'){API.post('/api/orders/'+order.id+'/confirm',{}).done(()=>{this.render($('#page-content').empty())}).fail(xhr=>alert(xhr.responseJSON?.error||'Failed'))}
+  const h=API.idemHeader();const reload=()=>this.render($('#page-content').empty());
+  if(act==='confirm'){API.post('/api/orders/'+order.id+'/confirm',{},h).done(reload).fail(xhr=>alert(xhr.responseJSON?.error||'Failed'))}
   else if(act==='pay'){
    const ref=prompt('Enter payment reference:');if(!ref)return;
-   API.post('/api/orders/'+order.id+'/pay',{amount:order.totalPrice,paymentReference:ref}).done(()=>{this.render($('#page-content').empty())}).fail(xhr=>alert(xhr.responseJSON?.error||'Failed'));
+   API.post('/api/orders/'+order.id+'/pay',{amount:order.totalPrice,paymentReference:ref},h).done(reload).fail(xhr=>alert(xhr.responseJSON?.error||'Failed'));
   }
-  else if(act==='check-in'){API.post('/api/orders/'+order.id+'/check-in',{}).done(()=>this.render($('#page-content').empty()))}
-  else if(act==='check-out'){API.post('/api/orders/'+order.id+'/check-out',{}).done(()=>this.render($('#page-content').empty()))}
-  else if(act==='complete'){API.post('/api/orders/'+order.id+'/complete',{}).done(()=>this.render($('#page-content').empty()))}
-  else if(act==='cancel'){const reason=prompt('Reason for cancellation:');if(!reason)return;API.post('/api/orders/'+order.id+'/cancel',{reason}).done(()=>this.render($('#page-content').empty())).fail(xhr=>alert(xhr.responseJSON?.error||'Failed'))}
-  else if(act==='refund'){const amt=prompt('Refund amount:',order.paidAmount);if(!amt)return;API.post('/api/orders/'+order.id+'/refund',{amount:parseFloat(amt),reason:'Admin refund'}).done(()=>this.render($('#page-content').empty()))}
+  else if(act==='check-in'){API.post('/api/orders/'+order.id+'/check-in',{},h).done(reload)}
+  else if(act==='check-out'){API.post('/api/orders/'+order.id+'/check-out',{},h).done(reload)}
+  else if(act==='complete'){API.post('/api/orders/'+order.id+'/complete',{},h).done(reload)}
+  else if(act==='cancel'){const reason=prompt('Reason for cancellation:');if(!reason)return;API.post('/api/orders/'+order.id+'/cancel',{reason},h).done(reload).fail(xhr=>alert(xhr.responseJSON?.error||'Failed'))}
+  else if(act==='refund'){const amt=prompt('Refund amount:',order.paidAmount);if(!amt)return;API.post('/api/orders/'+order.id+'/refund',{amount:parseFloat(amt),reason:'Admin refund'},h).done(reload)}
   else if(act==='reschedule'){alert('Select a new time slot from the listing page to reschedule.')}
  }
 };

@@ -19,6 +19,8 @@ public class User {
     private LocalDateTime updatedAt;
 
     private Integer pointsBalance;
+    private String department;
+    private String team;
 
     // Joined field
     private String roleName;
@@ -63,6 +65,10 @@ public class User {
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
     public Integer getPointsBalance() { return pointsBalance; }
     public void setPointsBalance(Integer pointsBalance) { this.pointsBalance = pointsBalance; }
+    public String getDepartment() { return department; }
+    public void setDepartment(String department) { this.department = department; }
+    public String getTeam() { return team; }
+    public void setTeam(String team) { this.team = team; }
     public String getRoleName() { return roleName; }
     public void setRoleName(String roleName) { this.roleName = roleName; }
 }

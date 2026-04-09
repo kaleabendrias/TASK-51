@@ -8,13 +8,11 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class EncryptionConfig {
 
-    @Value("${app.encryption-key:#{null}}")
+    @Value("${app.encryption-key}")
     private String encryptionKey;
 
     @PostConstruct
     public void init() {
-        if (encryptionKey != null && !encryptionKey.isBlank()) {
-            FieldEncryptor.configure(encryptionKey);
-        }
+        FieldEncryptor.configure(encryptionKey);
     }
 }

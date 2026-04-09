@@ -338,12 +338,8 @@ public class OrderService {
     }
 
     private void awardByRule(String triggerEvent, Order order) {
-        com.booking.domain.PointsRule rule = pointsRuleMapper.findByTrigger(triggerEvent);
-        if (rule != null && rule.getActive()) {
-            pointsService.awardPoints(order.getCustomerId(), rule.getPoints(),
-                    rule.getName(), "ORDER", order.getId(),
-                    rule.getDescription() + " for order " + order.getOrderNumber());
-        }
+        pointsService.awardByTrigger(triggerEvent, order.getCustomerId(),
+                "ORDER", order.getId(), "for order " + order.getOrderNumber());
     }
 
     private void recordAction(Long orderId, String action, String from, String to,

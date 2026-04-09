@@ -1,7 +1,11 @@
 package com.booking.service;
 
 import com.booking.domain.PointsLedgerEntry;
+import com.booking.domain.PointsRule;
+import com.booking.domain.User;
 import com.booking.mapper.PointsLedgerMapper;
+import com.booking.mapper.PointsRuleMapper;
+import com.booking.mapper.UserMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,9 +16,14 @@ import java.util.Map;
 public class PointsService {
 
     private final PointsLedgerMapper ledgerMapper;
+    private final PointsRuleMapper ruleMapper;
+    private final UserMapper userMapper;
 
-    public PointsService(PointsLedgerMapper ledgerMapper) {
+    public PointsService(PointsLedgerMapper ledgerMapper, PointsRuleMapper ruleMapper,
+                         UserMapper userMapper) {
         this.ledgerMapper = ledgerMapper;
+        this.ruleMapper = ruleMapper;
+        this.userMapper = userMapper;
     }
 
     public int getBalance(Long userId) {
@@ -27,6 +36,50 @@ public class PointsService {
 
     public List<Map<String, Object>> getLeaderboard() {
         return ledgerMapper.getLeaderboard();
+    }
+
+    /**
+     * Award points to a user by trigger event, respecting the configured rule scope.
+     * INDIVIDUAL: awards to the specific user.
+     * DEPARTMENT/TEAM: awards to all users sharing the same department/team.
+     */
+    @Transactional
+    public void awardByTrigger(String triggerEvent, Long userId, String refType, Long refId, String context) {
+        PointsRule rule = ruleMapper.findByTrigger(triggerEvent);
+        if (rule == null || !rule.getActive()) return;
+
+        switch (rule.getScope()) {
+            case "INDIVIDUAL" -> awardPoints(userId, rule.getPoints(), rule.getName(), refType, refId,
+                    rule.getDescription() + " " + context);
+            case "DEPARTMENT" -> {
+                User user = userMapper.findById(userId);
+                if (user != null && user.getDepartment() != null) {
+                    List<User> deptUsers = userMapper.findByDepartment(user.getDepartment());
+                    for (User u : deptUsers) {
+                        awardPoints(u.getId(), rule.getPoints(), rule.getName(), refType, refId,
+                                rule.getDescription() + " (dept: " + user.getDepartment() + ") " + context);
+                    }
+                } else {
+                    awardPoints(userId, rule.getPoints(), rule.getName(), refType, refId,
+                            rule.getDescription() + " " + context);
+                }
+            }
+            case "TEAM" -> {
+                User user = userMapper.findById(userId);
+                if (user != null && user.getTeam() != null) {
+                    List<User> teamUsers = userMapper.findByTeam(user.getTeam());
+                    for (User u : teamUsers) {
+                        awardPoints(u.getId(), rule.getPoints(), rule.getName(), refType, refId,
+                                rule.getDescription() + " (team: " + user.getTeam() + ") " + context);
+                    }
+                } else {
+                    awardPoints(userId, rule.getPoints(), rule.getName(), refType, refId,
+                            rule.getDescription() + " " + context);
+                }
+            }
+            default -> awardPoints(userId, rule.getPoints(), rule.getName(), refType, refId,
+                    rule.getDescription() + " " + context);
+        }
     }
 
     @Transactional

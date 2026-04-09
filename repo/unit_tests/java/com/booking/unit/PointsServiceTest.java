@@ -17,6 +17,8 @@ import static org.mockito.Mockito.*;
 class PointsServiceTest {
 
     @Mock PointsLedgerMapper ledgerMapper;
+    @Mock com.booking.mapper.PointsRuleMapper ruleMapper;
+    @Mock com.booking.mapper.UserMapper userMapper;
     @InjectMocks PointsService pointsService;
 
     @Test void awardPointsAddsToBalance() {

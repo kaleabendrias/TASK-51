@@ -105,29 +105,19 @@ class OrderServiceTest {
     }
 
     @Test
-    void recordPaymentAwardsPointsFromRulesEngine() {
-        com.booking.domain.PointsRule payRule = new com.booking.domain.PointsRule();
-        payRule.setName("ORDER_PAYMENT"); payRule.setPoints(10); payRule.setActive(true);
-        payRule.setDescription("Payment points");
-        when(pointsRuleMapper.findByTrigger("ORDER_PAID")).thenReturn(payRule);
-
+    void recordPaymentDelegatesPointsToMultiScopeEngine() {
         Order o = makeOrder("CONFIRMED");
         when(orderMapper.findById(1L)).thenReturn(o).thenReturn(makeOrder("PAID"));
         orderService.recordPayment(1L, BigDecimal.valueOf(150), "REF1", customer);
-        verify(pointsService).awardPoints(eq(4L), eq(10), eq("ORDER_PAYMENT"), any(), any(), any());
+        verify(pointsService).awardByTrigger(eq("ORDER_PAID"), eq(4L), eq("ORDER"), any(), anyString());
     }
 
     @Test
-    void completeAwardsBonusPointsFromRulesEngine() {
-        com.booking.domain.PointsRule compRule = new com.booking.domain.PointsRule();
-        compRule.setName("ORDER_COMPLETED"); compRule.setPoints(20); compRule.setActive(true);
-        compRule.setDescription("Completion bonus");
-        when(pointsRuleMapper.findByTrigger("ORDER_COMPLETED")).thenReturn(compRule);
-
+    void completeAwardsDelegatesPointsToMultiScopeEngine() {
         Order o = makeOrder("CHECKED_OUT");
         when(orderMapper.findById(1L)).thenReturn(o).thenReturn(makeOrder("COMPLETED"));
         orderService.complete(1L, photographer);
-        verify(pointsService).awardPoints(eq(4L), eq(20), eq("ORDER_COMPLETED"), any(), any(), any());
+        verify(pointsService).awardByTrigger(eq("ORDER_COMPLETED"), eq(4L), eq("ORDER"), any(), anyString());
     }
 
     @Test

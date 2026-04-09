@@ -38,3 +38,4 @@ management:
 app:
   upload-dir: ${java.io.tmpdir}/booking-test-uploads
   session-timeout-minutes: 60
+  encryption-key: TestEncryptionKey16Ch
