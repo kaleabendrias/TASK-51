@@ -1,6 +1,9 @@
 package com.booking.domain;
 
+import com.booking.util.FieldEncryptor;
+import com.booking.util.MaskUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 
 public class User {
@@ -33,8 +36,23 @@ public class User {
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
+
+    @JsonIgnore
     public String getPhone() { return phone; }
+    @JsonProperty("phone")
+    public String getPhoneMasked() {
+        if (phone == null) return null;
+        try {
+            // Phone may be encrypted at rest — try to decrypt then mask
+            String decrypted = FieldEncryptor.decrypt(phone);
+            return MaskUtil.maskPhone(decrypted);
+        } catch (Exception e) {
+            // Plaintext fallback for legacy unencrypted data
+            return MaskUtil.maskPhone(phone);
+        }
+    }
     public void setPhone(String phone) { this.phone = phone; }
+
     public Long getRoleId() { return roleId; }
     public void setRoleId(Long roleId) { this.roleId = roleId; }
     public Boolean getEnabled() { return enabled; }

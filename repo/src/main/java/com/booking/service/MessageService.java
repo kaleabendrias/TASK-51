@@ -2,9 +2,11 @@ package com.booking.service;
 
 import com.booking.domain.Conversation;
 import com.booking.domain.Message;
+import com.booking.domain.Order;
 import com.booking.domain.User;
 import com.booking.mapper.ConversationMapper;
 import com.booking.mapper.MessageMapper;
+import com.booking.mapper.OrderMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,10 +17,13 @@ public class MessageService {
 
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
+    private final OrderMapper orderMapper;
 
-    public MessageService(ConversationMapper conversationMapper, MessageMapper messageMapper) {
+    public MessageService(ConversationMapper conversationMapper, MessageMapper messageMapper,
+                          OrderMapper orderMapper) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
+        this.orderMapper = orderMapper;
     }
 
     public List<Conversation> getConversations(User user) {
@@ -44,8 +49,13 @@ public class MessageService {
             throw new IllegalArgumentException("Message content is required");
         }
 
-        // Photographers can only message their own customers/order participants
-        // This is enforced by conversation lookup
+        // Photographers can only initiate conversations with their own order customers
+        if ("PHOTOGRAPHER".equals(sender.getRoleName()) && orderId != null) {
+            Order order = orderMapper.findById(orderId);
+            if (order == null || !order.getPhotographerId().equals(sender.getId())) {
+                throw new SecurityException("Photographers can only message participants of their own orders");
+            }
+        }
 
         // Find or create conversation
         Conversation conv = conversationMapper.findByParticipants(

@@ -8,19 +8,39 @@
     </select>
 
     <select id="findByUserId" resultType="NotificationRecord">
-        SELECT * FROM notification_queue WHERE user_id = #{userId} ORDER BY created_at DESC
+        SELECT * FROM notification_queue WHERE user_id = #{userId}
+        AND (archived IS NULL OR archived = false)
+        ORDER BY created_at DESC
     </select>
 
     <select id="findQueued" resultType="NotificationRecord">
-        SELECT * FROM notification_queue WHERE status = 'QUEUED' ORDER BY created_at ASC LIMIT 100
+        SELECT * FROM notification_queue
+        WHERE status = 'QUEUED' AND (terminal IS NULL OR terminal = false)
+        ORDER BY created_at ASC LIMIT 100
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO notification_queue (user_id, channel, recipient, subject, body, status, reference_type, reference_id)
-        VALUES (#{userId}, #{channel}, #{recipient}, #{subject}, #{body}, #{status}, #{referenceType}, #{referenceId})
+        INSERT INTO notification_queue (user_id, channel, recipient, subject, body, status, retry_count, reference_type, reference_id)
+        VALUES (#{userId}, #{channel}, #{recipient}, #{subject}, #{body}, #{status}, 0, #{referenceType}, #{referenceId})
     </insert>
 
     <update id="updateStatus">
         UPDATE notification_queue SET status = #{status}, processed_at = CURRENT_TIMESTAMP WHERE id = #{id}
+    </update>
+
+    <update id="markRead">
+        UPDATE notification_queue SET read_at = CURRENT_TIMESTAMP WHERE id = #{id} AND read_at IS NULL
+    </update>
+
+    <update id="archive">
+        UPDATE notification_queue SET archived = true WHERE id = #{id}
+    </update>
+
+    <update id="markTerminal">
+        UPDATE notification_queue SET terminal = true, status = 'FAILED' WHERE id = #{id}
+    </update>
+
+    <update id="incrementRetry">
+        UPDATE notification_queue SET retry_count = retry_count + 1 WHERE id = #{id}
     </update>
 </mapper>

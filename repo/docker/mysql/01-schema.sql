@@ -16,7 +16,7 @@ CREATE TABLE users (
     email         VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name     VARCHAR(255) NOT NULL,
-    phone         VARCHAR(30),
+    phone         VARCHAR(500),
     role_id       BIGINT       NOT NULL,
     enabled       BOOLEAN      DEFAULT TRUE,
     created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,

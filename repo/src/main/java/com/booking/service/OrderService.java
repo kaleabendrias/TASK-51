@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -17,6 +18,7 @@ public class OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
     private static final int PAYMENT_DEADLINE_MINUTES = 30;
+    private static final Set<String> VALID_DELIVERY_MODES = Set.of("ONSITE", "PICKUP", "COURIER");
 
     private final OrderMapper orderMapper;
     private final OrderActionMapper orderActionMapper;
@@ -24,16 +26,19 @@ public class OrderService {
     private final TimeSlotService timeSlotService;
     private final NotificationService notificationService;
     private final PointsService pointsService;
+    private final com.booking.mapper.PointsRuleMapper pointsRuleMapper;
 
     public OrderService(OrderMapper orderMapper, OrderActionMapper orderActionMapper,
                         ListingMapper listingMapper, TimeSlotService timeSlotService,
-                        NotificationService notificationService, PointsService pointsService) {
+                        NotificationService notificationService, PointsService pointsService,
+                        com.booking.mapper.PointsRuleMapper pointsRuleMapper) {
         this.orderMapper = orderMapper;
         this.orderActionMapper = orderActionMapper;
         this.listingMapper = listingMapper;
         this.timeSlotService = timeSlotService;
         this.notificationService = notificationService;
         this.pointsService = pointsService;
+        this.pointsRuleMapper = pointsRuleMapper;
     }
 
     public Order getById(Long id) {
@@ -65,7 +70,15 @@ public class OrderService {
 
     @Transactional
     public Order createOrder(Long listingId, Long timeSlotId, Long addressId,
-                             String notes, User customer) {
+                             String notes, String deliveryMode, User customer) {
+        // Validate delivery mode
+        String mode = (deliveryMode != null) ? deliveryMode.toUpperCase() : "ONSITE";
+        if (!VALID_DELIVERY_MODES.contains(mode)) {
+            throw new IllegalArgumentException("Invalid delivery mode. Must be one of: " + VALID_DELIVERY_MODES);
+        }
+        if ("COURIER".equals(mode) && addressId == null) {
+            throw new IllegalArgumentException("Address is required for courier delivery");
+        }
         Listing listing = listingMapper.findById(listingId);
         if (listing == null || !listing.getActive()) {
             throw new IllegalArgumentException("Listing not found or inactive");
@@ -97,6 +110,7 @@ public class OrderService {
         order.setPaidAmount(BigDecimal.ZERO);
         order.setAddressId(addressId);
         order.setNotes(notes);
+        order.setDeliveryMode(mode);
         order.setPaymentDeadline(LocalDateTime.now().plusMinutes(PAYMENT_DEADLINE_MINUTES));
 
         try {
@@ -137,10 +151,8 @@ public class OrderService {
         order.setStatus(OrderStatus.PAID.name());
         orderMapper.update(order);
 
-        // Award points for payment
-        pointsService.awardPoints(order.getCustomerId(), 10,
-                "ORDER_PAYMENT", "ORDER", order.getId(),
-                "Points for order " + order.getOrderNumber());
+        // Award points for payment — driven by configurable rules
+        awardByRule("ORDER_PAID", order);
 
         notificationService.queueOrderNotification(order, "PAYMENT_RECEIVED",
                 "Payment received for order " + order.getOrderNumber());
@@ -169,10 +181,8 @@ public class OrderService {
         enforceAccess(order, actor, "PHOTOGRAPHER", "ADMINISTRATOR");
         transition(order, OrderStatus.COMPLETED, actor.getId(), "Order completed");
 
-        // Award completion bonus points
-        pointsService.awardPoints(order.getCustomerId(), 20,
-                "ORDER_COMPLETED", "ORDER", order.getId(),
-                "Completion bonus for order " + order.getOrderNumber());
+        // Award completion bonus — driven by configurable rules
+        awardByRule("ORDER_COMPLETED", order);
 
         notificationService.queueOrderNotification(order, "ORDER_COMPLETED",
                 "Order " + order.getOrderNumber() + " is now complete");
@@ -235,8 +245,10 @@ public class OrderService {
             timeSlotService.releaseSlot(order.getTimeSlotId());
         }
 
-        // Deduct points if they were awarded
-        pointsService.deductPoints(order.getCustomerId(), 10,
+        // Deduct points — lookup the payment rule value for consistent reversal
+        com.booking.domain.PointsRule payRule = pointsRuleMapper.findByTrigger("ORDER_PAID");
+        int deductAmt = (payRule != null) ? payRule.getPoints() : 10;
+        pointsService.deductPoints(order.getCustomerId(), deductAmt,
                 "REFUND_DEDUCTION", "ORDER", order.getId(),
                 "Points reversed for refunded order " + order.getOrderNumber());
 
@@ -323,6 +335,15 @@ public class OrderService {
         }
         orderMapper.updateStatus(order.getId(), target.name());
         recordAction(order.getId(), target.name(), current.name(), target.name(), actorId, detail);
+    }
+
+    private void awardByRule(String triggerEvent, Order order) {
+        com.booking.domain.PointsRule rule = pointsRuleMapper.findByTrigger(triggerEvent);
+        if (rule != null && rule.getActive()) {
+            pointsService.awardPoints(order.getCustomerId(), rule.getPoints(),
+                    rule.getName(), "ORDER", order.getId(),
+                    rule.getDescription() + " for order " + order.getOrderNumber());
+        }
     }
 
     private void recordAction(Long orderId, String action, String from, String to,

@@ -27,7 +27,7 @@ mybatis:
   type-aliases-package: com.booking.domain
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
 management:
   endpoints:
@@ -36,8 +36,10 @@ management:
         include: health
   endpoint:
     health:
-      show-details: always
+      show-details: when_authorized
+      roles: ADMINISTRATOR
 
 app:
   upload-dir: /app/uploads
   session-timeout-minutes: 60
+  encryption-key: ${ENCRYPTION_KEY:BookingPortalSecretK}

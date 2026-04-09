@@ -19,6 +19,7 @@
         <result property="rescheduleFromId" column="reschedule_from_id"/>
         <result property="addressId" column="address_id"/>
         <result property="notes" column="notes"/>
+        <result property="deliveryMode" column="delivery_mode"/>
         <result property="paymentDeadline" column="payment_deadline"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
@@ -77,10 +78,10 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO orders (order_number, customer_id, photographer_id, listing_id, time_slot_id,
                             status, total_price, paid_amount, payment_reference, cancel_reason,
-                            refund_amount, reschedule_from_id, address_id, notes, payment_deadline)
+                            refund_amount, reschedule_from_id, address_id, notes, delivery_mode, payment_deadline)
         VALUES (#{orderNumber}, #{customerId}, #{photographerId}, #{listingId}, #{timeSlotId},
                 #{status}, #{totalPrice}, #{paidAmount}, #{paymentReference}, #{cancelReason},
-                #{refundAmount}, #{rescheduleFromId}, #{addressId}, #{notes}, #{paymentDeadline})
+                #{refundAmount}, #{rescheduleFromId}, #{addressId}, #{notes}, #{deliveryMode}, #{paymentDeadline})
     </insert>
 
     <update id="updateStatus">

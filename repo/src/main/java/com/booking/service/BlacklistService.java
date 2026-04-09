@@ -48,6 +48,9 @@ public class BlacklistService {
         if (!"ADMINISTRATOR".equals(admin.getRoleName())) {
             throw new SecurityException("Only administrators can blacklist accounts");
         }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Blacklist reason is required and must not be empty");
+        }
 
         User target = userMapper.findById(userId);
         if (target == null) throw new IllegalArgumentException("User not found");

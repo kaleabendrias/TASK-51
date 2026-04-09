@@ -163,7 +163,11 @@ const SearchPage={
      <div class="form-group"><label>Category</label><select class="form-control" id="f-category"><option value="">All</option><option>PORTRAIT</option><option>WEDDING</option><option>EVENT</option><option>FAMILY</option><option>PRODUCT</option></select></div>
      <div class="form-group"><label>Min Price ($)</label><input type="number" class="form-control" id="f-min-price" min="0"/></div>
      <div class="form-group"><label>Max Price ($)</label><input type="number" class="form-control" id="f-max-price" min="0"/></div>
-     <div class="form-group"><label>Sort By</label><select class="form-control" id="f-sort"><option value="newest">Newest</option><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="duration">Duration</option></select></div>
+     <div class="form-group"><label>Theme</label><select class="form-control" id="f-theme"><option value="">Any</option><option>CLASSIC</option><option>MODERN</option><option>VINTAGE</option><option>ARTISTIC</option><option>NATURAL</option></select></div>
+     <div class="form-group"><label>Transport</label><select class="form-control" id="f-transport"><option value="">Any</option><option>WALK</option><option>DRIVE</option><option>PUBLIC_TRANSIT</option></select></div>
+     <div class="form-group"><label>Min Rating</label><input type="number" class="form-control" id="f-min-rating" min="0" max="5" step="0.5"/></div>
+     <div class="form-group"><label>Available Date</label><input type="date" class="form-control" id="f-avail-date"/></div>
+     <div class="form-group"><label>Sort By</label><select class="form-control" id="f-sort"><option value="newest">Newest</option><option value="price-asc">Price: Low to High</option><option value="price-desc">Price: High to Low</option><option value="duration">Duration</option><option value="rating">Rating</option></select></div>
     </div>
    </div>
    <div id="listing-results" class="listing-grid"></div>
@@ -192,20 +196,31 @@ const SearchPage={
   if($('#f-min-price').val())params.set('minPrice',$('#f-min-price').val());
   if($('#f-max-price').val())params.set('maxPrice',$('#f-max-price').val());
   if(loc)params.set('location',loc);
-  API.get('/api/listings/search?'+params.toString()).done(data=>{
-   this.results=this.sortResults(data);this.renderResults();
+  // Wire new search dimensions
+  if($('#f-theme').length&&$('#f-theme').val())params.set('theme',$('#f-theme').val());
+  if($('#f-transport').length&&$('#f-transport').val())params.set('transportMode',$('#f-transport').val());
+  if($('#f-min-rating').length&&$('#f-min-rating').val())params.set('minRating',$('#f-min-rating').val());
+  if($('#f-avail-date').length&&$('#f-avail-date').val())params.set('availableDate',$('#f-avail-date').val());
+  params.set('page',this.page);params.set('size',this.perPage);
+  API.get('/api/listings/search?'+params.toString()).done(resp=>{
+   // Backend returns {items:[], page, size, total, totalPages}
+   this.results=this.sortResults(resp.items||[]);
+   this.totalFromServer=resp.total||0;
+   this.totalPagesFromServer=resp.totalPages||1;
+   this.renderResults();
   });
  },
- sortResults(data){
+ sortResults(items){
   const s=$('#f-sort').val();
-  if(s==='price-asc')data.sort((a,b)=>a.price-b.price);
-  else if(s==='price-desc')data.sort((a,b)=>b.price-a.price);
-  else if(s==='duration')data.sort((a,b)=>a.durationMinutes-b.durationMinutes);
-  return data;
+  if(s==='price-asc')items.sort((a,b)=>a.price-b.price);
+  else if(s==='price-desc')items.sort((a,b)=>b.price-a.price);
+  else if(s==='duration')items.sort((a,b)=>a.durationMinutes-b.durationMinutes);
+  else if(s==='rating')items.sort((a,b)=>(b.rating||0)-(a.rating||0));
+  return items;
  },
  renderResults(){
-  const grid=$('#listing-results').empty();const start=(this.page-1)*this.perPage,end=start+this.perPage;
-  const pageData=this.results.slice(start,end);
+  const grid=$('#listing-results').empty();
+  const pageData=this.results;
   if(!pageData.length){grid.html('<div class="card text-center text-muted" style="grid-column:1/-1;padding:3rem">No listings found. Try adjusting your filters.</div>');$('#search-pagination').empty();return}
   pageData.forEach(l=>{
    grid.append(`<div class="listing-card" data-id="${l.id}">
@@ -221,12 +236,12 @@ const SearchPage={
   this.renderPagination();
  },
  renderPagination(){
-  const total=Math.ceil(this.results.length/this.perPage);const pg=$('#search-pagination').empty();
+  const total=this.totalPagesFromServer||1;const pg=$('#search-pagination').empty();
   if(total<=1)return;
   pg.append(`<button class="page-btn" ${this.page<=1?'disabled':''} data-p="${this.page-1}">Prev</button>`);
-  for(let i=1;i<=total;i++)pg.append(`<button class="page-btn ${i===this.page?'active':''}" data-p="${i}">${i}</button>`);
+  for(let i=1;i<=Math.min(total,10);i++)pg.append(`<button class="page-btn ${i===this.page?'active':''}" data-p="${i}">${i}</button>`);
   pg.append(`<button class="page-btn" ${this.page>=total?'disabled':''} data-p="${this.page+1}">Next</button>`);
-  pg.find('.page-btn').on('click',function(){if(!$(this).is(':disabled')){SearchPage.page=parseInt($(this).data('p'));SearchPage.renderResults()}});
+  pg.find('.page-btn').on('click',function(){if(!$(this).is(':disabled')){SearchPage.page=parseInt($(this).data('p'));SearchPage.doSearch()}});
  }
 };
 

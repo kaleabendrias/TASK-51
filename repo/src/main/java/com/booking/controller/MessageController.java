@@ -18,6 +18,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.booking.domain.Message;
+import com.booking.mapper.MessageMapper;
+
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
@@ -35,15 +38,18 @@ public class MessageController {
     private final MessageService messageService;
     private final ChatAttachmentMapper chatAttachmentMapper;
     private final ConversationMapper conversationMapper;
+    private final MessageMapper messageMapper;
     private final Path uploadDir;
 
     public MessageController(MessageService messageService,
                              ChatAttachmentMapper chatAttachmentMapper,
                              ConversationMapper conversationMapper,
+                             MessageMapper messageMapper,
                              @Value("${app.upload-dir}") String uploadDir) {
         this.messageService = messageService;
         this.chatAttachmentMapper = chatAttachmentMapper;
         this.conversationMapper = conversationMapper;
+        this.messageMapper = messageMapper;
         this.uploadDir = Paths.get(uploadDir, "chat");
         try { Files.createDirectories(this.uploadDir); } catch (IOException ignored) {}
     }
@@ -152,9 +158,22 @@ public class MessageController {
     }
 
     @GetMapping("/attachments/{id}/download")
-    public ResponseEntity<?> downloadImage(@PathVariable Long id) {
+    public ResponseEntity<?> downloadImage(@PathVariable Long id, HttpSession session) {
+        User user = SessionUtil.getCurrentUser(session);
         ChatAttachment att = chatAttachmentMapper.findById(id);
         if (att == null) return ResponseEntity.notFound().build();
+
+        // IDOR fix: verify caller is a participant of the conversation this attachment belongs to
+        Message msg = messageMapper.findById(att.getMessageId());
+        if (msg == null) return ResponseEntity.notFound().build();
+        Conversation conv = conversationMapper.findById(msg.getConversationId());
+        if (conv == null) return ResponseEntity.notFound().build();
+        if (!conv.getParticipantOne().equals(user.getId()) &&
+            !conv.getParticipantTwo().equals(user.getId()) &&
+            !"ADMINISTRATOR".equals(user.getRoleName())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
         try {
             Resource resource = new UrlResource(uploadDir.resolve(att.getFileName()).toUri());
             if (!resource.exists()) return ResponseEntity.notFound().build();

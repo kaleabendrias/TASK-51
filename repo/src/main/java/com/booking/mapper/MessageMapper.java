@@ -8,6 +8,7 @@ import java.util.List;
 
 @Mapper
 public interface MessageMapper {
+    Message findById(@Param("id") Long id);
     List<Message> findByConversationId(@Param("conversationId") Long conversationId);
     void insert(Message message);
     void markRead(@Param("conversationId") Long conversationId, @Param("userId") Long userId);

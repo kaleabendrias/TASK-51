@@ -12,13 +12,33 @@ public final class FieldEncryptor {
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_TAG_LENGTH = 128;
     private static final int IV_LENGTH = 12;
-
-    // Embedded key — in production this would come from a vault/KMS
-    private static final byte[] KEY = "BookingPortal32!".getBytes(StandardCharsets.UTF_8);
-    private static final SecretKeySpec KEY_SPEC = new SecretKeySpec(KEY, "AES");
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    // Key loaded from config; defaults to a fallback for dev/test only
+    private static volatile byte[] keyBytes;
+    private static volatile SecretKeySpec keySpec;
+
     private FieldEncryptor() {}
+
+    public static void configure(String key) {
+        if (key == null || key.length() < 16) {
+            throw new IllegalArgumentException("Encryption key must be at least 16 characters");
+        }
+        // Pad or trim to exactly 16 bytes for AES-128
+        byte[] raw = key.getBytes(StandardCharsets.UTF_8);
+        byte[] sized = new byte[16];
+        System.arraycopy(raw, 0, sized, 0, Math.min(raw.length, 16));
+        keyBytes = sized;
+        keySpec = new SecretKeySpec(sized, "AES");
+    }
+
+    private static SecretKeySpec getKeySpec() {
+        if (keySpec == null) {
+            // Fallback for tests / unconfigured — not for production
+            configure("BookingPortal32!");
+        }
+        return keySpec;
+    }
 
     public static String encrypt(String plaintext) {
         if (plaintext == null) return null;
@@ -26,7 +46,7 @@ public final class FieldEncryptor {
             byte[] iv = new byte[IV_LENGTH];
             RANDOM.nextBytes(iv);
             Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.ENCRYPT_MODE, KEY_SPEC, new GCMParameterSpec(GCM_TAG_LENGTH, iv));
+            cipher.init(Cipher.ENCRYPT_MODE, getKeySpec(), new GCMParameterSpec(GCM_TAG_LENGTH, iv));
             byte[] encrypted = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
             byte[] combined = new byte[IV_LENGTH + encrypted.length];
             System.arraycopy(iv, 0, combined, 0, IV_LENGTH);
@@ -46,7 +66,7 @@ public final class FieldEncryptor {
             byte[] encrypted = new byte[combined.length - IV_LENGTH];
             System.arraycopy(combined, IV_LENGTH, encrypted, 0, encrypted.length);
             Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.DECRYPT_MODE, KEY_SPEC, new GCMParameterSpec(GCM_TAG_LENGTH, iv));
+            cipher.init(Cipher.DECRYPT_MODE, getKeySpec(), new GCMParameterSpec(GCM_TAG_LENGTH, iv));
             return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new RuntimeException("Decryption failed", e);

@@ -15,6 +15,9 @@ public class NotificationRecord {
     private Long referenceId;
     private LocalDateTime createdAt;
     private LocalDateTime processedAt;
+    private LocalDateTime readAt;
+    private Boolean archived;
+    private Boolean terminal;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -40,4 +43,10 @@ public class NotificationRecord {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getProcessedAt() { return processedAt; }
     public void setProcessedAt(LocalDateTime processedAt) { this.processedAt = processedAt; }
+    public LocalDateTime getReadAt() { return readAt; }
+    public void setReadAt(LocalDateTime readAt) { this.readAt = readAt; }
+    public Boolean getArchived() { return archived; }
+    public void setArchived(Boolean archived) { this.archived = archived; }
+    public Boolean getTerminal() { return terminal; }
+    public void setTerminal(Boolean terminal) { this.terminal = terminal; }
 }

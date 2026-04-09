@@ -32,51 +32,66 @@ public class IdempotencyService {
         }
     }
 
-    public IdempotencyResult checkToken(String token, String action) {
+    /**
+     * Checks an idempotency token scoped to a specific order+action combination.
+     * The compound key prevents caching collisions across different actions on the same order.
+     */
+    public IdempotencyResult checkToken(String token, String action, Long orderId) {
         if (token == null || token.isBlank()) return new IdempotencyResult(false, null, null);
 
-        IdempotencyToken existing = tokenMapper.findByToken(token);
+        // Build a compound key: token + action + orderId to prevent cross-action collisions
+        String scopedKey = token + "::" + action + "::" + (orderId != null ? orderId : "new");
+
+        IdempotencyToken existing = tokenMapper.findByToken(scopedKey);
         if (existing != null) {
             if (existing.isExpired()) {
-                // Expired token — treat as new
                 return new IdempotencyResult(false, null, null);
             }
             if (existing.getResponseStatus() != null) {
-                // Already processed — return cached response
                 return new IdempotencyResult(true, existing.getResponseStatus(), existing.getResponseBody());
             }
-            // In-flight (token claimed but no response yet) — reject as duplicate
             return new IdempotencyResult(true, 409, "{\"error\":\"Request is already being processed\"}");
         }
 
-        // Claim the token
         IdempotencyToken newToken = new IdempotencyToken();
-        newToken.setToken(token);
+        newToken.setToken(scopedKey);
         newToken.setAction(action);
+        newToken.setOrderId(orderId);
         newToken.setExpiresAt(LocalDateTime.now().plusMinutes(TOKEN_VALIDITY_MINUTES));
         try {
             tokenMapper.insert(newToken);
         } catch (Exception e) {
-            // Duplicate insert race — treat as duplicate
             return new IdempotencyResult(true, 409, "{\"error\":\"Duplicate request\"}");
         }
 
         return new IdempotencyResult(false, null, null);
     }
 
+    /** @deprecated Use checkToken(token, action, orderId) for proper scoping */
+    @Deprecated
+    public IdempotencyResult checkToken(String token, String action) {
+        return checkToken(token, action, null);
+    }
+
+    public void recordResponse(String token, String action, Long orderId, int status, String body) {
+        if (token == null || token.isBlank()) return;
+        String scopedKey = token + "::" + action + "::" + (orderId != null ? orderId : "new");
+        try {
+            tokenMapper.updateResponse(scopedKey, status, body);
+        } catch (Exception e) {
+            // Non-critical
+        }
+    }
+
+    /** @deprecated Use recordResponse(token, action, orderId, status, body) for proper scoping */
+    @Deprecated
     public void recordResponse(String token, Long orderId, int status, String body) {
+        // Fallback — cannot reconstruct the scoped key without action
         if (token == null || token.isBlank()) return;
         try {
             tokenMapper.updateResponse(token, status, body);
-            if (orderId != null) {
-                // update order_id on the token for reference
-                IdempotencyToken t = tokenMapper.findByToken(token);
-                if (t != null) {
-                    t.setOrderId(orderId);
-                }
-            }
         } catch (Exception e) {
-            // Non-critical — log and continue
+            // Non-critical
         }
     }
 

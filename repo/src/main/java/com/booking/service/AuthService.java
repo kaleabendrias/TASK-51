@@ -2,6 +2,7 @@ package com.booking.service;
 
 import com.booking.domain.User;
 import com.booking.mapper.UserMapper;
+import com.booking.util.FieldEncryptor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -41,7 +42,7 @@ public class AuthService {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setFullName(fullName);
-        user.setPhone(phone);
+        user.setPhone(phone != null ? FieldEncryptor.encrypt(phone) : null);
         user.setRoleId(roleId);
         user.setEnabled(true);
         userMapper.insert(user);

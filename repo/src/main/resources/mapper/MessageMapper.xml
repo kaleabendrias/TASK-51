@@ -13,6 +13,10 @@
         <result property="senderName" column="sender_name"/>
     </resultMap>
 
+    <select id="findById" resultMap="msgResult">
+        SELECT m.*, u.full_name AS sender_name FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.id = #{id}
+    </select>
+
     <select id="findByConversationId" resultMap="msgResult">
         SELECT m.*, u.full_name AS sender_name
         FROM messages m

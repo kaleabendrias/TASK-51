@@ -37,7 +37,7 @@ public class DataInitializer implements CommandLineRunner {
             }
         }
         if (updated > 0) {
-            log.info("Initialized passwords for {} seed users (default: {})", updated, DEFAULT_PASSWORD);
+            log.info("Initialized passwords for {} seed users", updated);
         }
     }
 }

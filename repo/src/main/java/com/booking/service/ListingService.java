@@ -6,10 +6,15 @@ import com.booking.mapper.ListingMapper;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ListingService {
+
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final ListingMapper listingMapper;
 
@@ -29,9 +34,26 @@ public class ListingService {
         return listingMapper.findByPhotographerId(photographerId);
     }
 
-    public List<Listing> search(String keyword, String category,
-                                BigDecimal minPrice, BigDecimal maxPrice, String location) {
-        return listingMapper.search(keyword, category, minPrice, maxPrice, location);
+    public Map<String, Object> search(String keyword, String category,
+                                      BigDecimal minPrice, BigDecimal maxPrice,
+                                      String location, String theme, String transportMode,
+                                      BigDecimal minRating, String availableDate,
+                                      int page, int size) {
+        int pageSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        int offset = Math.max(page - 1, 0) * pageSize;
+
+        List<Listing> items = listingMapper.search(keyword, category, minPrice, maxPrice,
+                location, theme, transportMode, minRating, availableDate, offset, pageSize);
+        long total = listingMapper.searchCount(keyword, category, minPrice, maxPrice,
+                location, theme, transportMode, minRating, availableDate);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("items", items);
+        result.put("page", page);
+        result.put("size", pageSize);
+        result.put("total", total);
+        result.put("totalPages", (int) Math.ceil((double) total / pageSize));
+        return result;
     }
 
     public Listing create(Listing listing, User photographer) {

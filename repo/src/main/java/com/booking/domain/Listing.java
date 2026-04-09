@@ -17,6 +17,11 @@ public class Listing {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    private String theme;
+    private String transportMode;
+    private java.math.BigDecimal rating;
+    private Integer ratingCount;
+
     // Joined
     private String photographerName;
 
@@ -44,6 +49,14 @@ public class Listing {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public String getTheme() { return theme; }
+    public void setTheme(String theme) { this.theme = theme; }
+    public String getTransportMode() { return transportMode; }
+    public void setTransportMode(String transportMode) { this.transportMode = transportMode; }
+    public java.math.BigDecimal getRating() { return rating; }
+    public void setRating(java.math.BigDecimal rating) { this.rating = rating; }
+    public Integer getRatingCount() { return ratingCount; }
+    public void setRatingCount(Integer ratingCount) { this.ratingCount = ratingCount; }
     public String getPhotographerName() { return photographerName; }
     public void setPhotographerName(String photographerName) { this.photographerName = photographerName; }
 }

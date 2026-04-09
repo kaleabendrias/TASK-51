@@ -13,4 +13,8 @@ public interface NotificationMapper {
     List<NotificationRecord> findQueued();
     void insert(NotificationRecord record);
     void updateStatus(@Param("id") Long id, @Param("status") String status);
+    void markRead(@Param("id") Long id);
+    void archive(@Param("id") Long id);
+    void markTerminal(@Param("id") Long id);
+    void incrementRetry(@Param("id") Long id);
 }

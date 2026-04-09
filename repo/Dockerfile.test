@@ -1,0 +1,17 @@
+FROM maven:3.9-eclipse-temurin-17
+
+WORKDIR /build
+
+# Cache dependencies including plugin deps
+COPY pom.xml .
+RUN mvn dependency:go-offline dependency:resolve-plugins -B
+
+# Copy production source
+COPY src ./src
+
+# Copy test sources from approved root-level directories
+COPY unit_tests ./unit_tests
+COPY api_tests  ./api_tests
+
+ENTRYPOINT ["mvn"]
+CMD ["verify", "-B"]

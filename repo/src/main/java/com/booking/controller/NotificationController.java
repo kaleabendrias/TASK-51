@@ -30,6 +30,20 @@ public class NotificationController {
         return ResponseEntity.ok(notificationService.getByUser(user.getId()));
     }
 
+    @PostMapping("/{id}/read")
+    public ResponseEntity<?> markRead(@PathVariable Long id, HttpSession session) {
+        User user = SessionUtil.getCurrentUser(session);
+        notificationService.markRead(id, user.getId());
+        return ResponseEntity.ok(Map.of("message", "Marked as read"));
+    }
+
+    @PostMapping("/{id}/archive")
+    public ResponseEntity<?> archive(@PathVariable Long id, HttpSession session) {
+        User user = SessionUtil.getCurrentUser(session);
+        notificationService.archive(id, user.getId());
+        return ResponseEntity.ok(Map.of("message", "Archived"));
+    }
+
     @GetMapping("/preferences")
     public ResponseEntity<?> getPreferences(HttpSession session) {
         User user = SessionUtil.getCurrentUser(session);

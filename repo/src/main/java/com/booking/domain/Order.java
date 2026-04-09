@@ -20,6 +20,7 @@ public class Order {
     private Long rescheduleFromId;
     private Long addressId;
     private String notes;
+    private String deliveryMode;
     private LocalDateTime paymentDeadline;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -62,6 +63,8 @@ public class Order {
     public void setAddressId(Long addressId) { this.addressId = addressId; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+    public String getDeliveryMode() { return deliveryMode; }
+    public void setDeliveryMode(String deliveryMode) { this.deliveryMode = deliveryMode; }
     public LocalDateTime getPaymentDeadline() { return paymentDeadline; }
     public void setPaymentDeadline(LocalDateTime paymentDeadline) { this.paymentDeadline = paymentDeadline; }
     public LocalDateTime getCreatedAt() { return createdAt; }

@@ -14,6 +14,10 @@
         <result property="location" column="location"/>
         <result property="maxConcurrent" column="max_concurrent"/>
         <result property="active" column="active"/>
+        <result property="theme" column="theme"/>
+        <result property="transportMode" column="transport_mode"/>
+        <result property="rating" column="rating"/>
+        <result property="ratingCount" column="rating_count"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
         <result property="photographerName" column="photographer_name"/>
@@ -23,6 +27,40 @@
         SELECT l.*, u.full_name AS photographer_name
         FROM listings l
         JOIN users u ON l.photographer_id = u.id
+    </sql>
+
+    <sql id="searchConditions">
+        WHERE l.active = true
+        <if test="keyword != null and keyword != ''">
+            AND (l.title LIKE CONCAT('%',#{keyword},'%') OR l.description LIKE CONCAT('%',#{keyword},'%'))
+        </if>
+        <if test="category != null and category != ''">
+            AND l.category = #{category}
+        </if>
+        <if test="minPrice != null">
+            AND l.price &gt;= #{minPrice}
+        </if>
+        <if test="maxPrice != null">
+            AND l.price &lt;= #{maxPrice}
+        </if>
+        <if test="location != null and location != ''">
+            AND l.location LIKE CONCAT('%',#{location},'%')
+        </if>
+        <if test="theme != null and theme != ''">
+            AND l.theme = #{theme}
+        </if>
+        <if test="transportMode != null and transportMode != ''">
+            AND l.transport_mode = #{transportMode}
+        </if>
+        <if test="minRating != null">
+            AND l.rating &gt;= #{minRating}
+        </if>
+        <if test="availableDate != null and availableDate != ''">
+            AND EXISTS (SELECT 1 FROM time_slots ts
+                WHERE ts.listing_id = l.id
+                AND ts.slot_date = #{availableDate}
+                AND ts.booked_count &lt; ts.capacity)
+        </if>
     </sql>
 
     <select id="findById" resultMap="listingResult">
@@ -43,34 +81,27 @@
 
     <select id="search" resultMap="listingResult">
         <include refid="selectListing"/>
-        WHERE l.active = true
-        <if test="keyword != null and keyword != ''">
-            AND (l.title LIKE CONCAT('%',#{keyword},'%') OR l.description LIKE CONCAT('%',#{keyword},'%'))
-        </if>
-        <if test="category != null and category != ''">
-            AND l.category = #{category}
-        </if>
-        <if test="minPrice != null">
-            AND l.price &gt;= #{minPrice}
-        </if>
-        <if test="maxPrice != null">
-            AND l.price &lt;= #{maxPrice}
-        </if>
-        <if test="location != null and location != ''">
-            AND l.location LIKE CONCAT('%',#{location},'%')
-        </if>
+        <include refid="searchConditions"/>
         ORDER BY l.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="searchCount" resultType="long">
+        SELECT COUNT(*) FROM listings l
+        <include refid="searchConditions"/>
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO listings (photographer_id, title, description, category, price, duration_minutes, location, max_concurrent, active)
-        VALUES (#{photographerId}, #{title}, #{description}, #{category}, #{price}, #{durationMinutes}, #{location}, #{maxConcurrent}, #{active})
+        INSERT INTO listings (photographer_id, title, description, category, price, duration_minutes,
+                              location, max_concurrent, active, theme, transport_mode)
+        VALUES (#{photographerId}, #{title}, #{description}, #{category}, #{price}, #{durationMinutes},
+                #{location}, #{maxConcurrent}, #{active}, #{theme}, #{transportMode})
     </insert>
 
     <update id="update">
         UPDATE listings SET title=#{title}, description=#{description}, category=#{category},
             price=#{price}, duration_minutes=#{durationMinutes}, location=#{location},
-            max_concurrent=#{maxConcurrent}, active=#{active}
+            max_concurrent=#{maxConcurrent}, active=#{active}, theme=#{theme}, transport_mode=#{transportMode}
         WHERE id = #{id}
     </update>
 </mapper>

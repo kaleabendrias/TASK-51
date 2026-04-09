@@ -1,8 +1,10 @@
 package com.booking.controller;
 
 import com.booking.domain.Attachment;
+import com.booking.domain.Booking;
 import com.booking.domain.User;
 import com.booking.service.AttachmentService;
+import com.booking.service.BookingService;
 import com.booking.util.SessionUtil;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.core.io.Resource;
@@ -22,13 +24,21 @@ import java.util.Map;
 public class AttachmentController {
 
     private final AttachmentService attachmentService;
+    private final BookingService bookingService;
 
-    public AttachmentController(AttachmentService attachmentService) {
+    public AttachmentController(AttachmentService attachmentService, BookingService bookingService) {
         this.attachmentService = attachmentService;
+        this.bookingService = bookingService;
     }
 
     @GetMapping("/booking/{bookingId}")
-    public ResponseEntity<?> listForBooking(@PathVariable Long bookingId) {
+    public ResponseEntity<?> listForBooking(@PathVariable Long bookingId, HttpSession session) {
+        User user = SessionUtil.getCurrentUser(session);
+        Booking booking = bookingService.getById(bookingId);
+        if (booking == null) return ResponseEntity.notFound().build();
+        if (!bookingService.canUserAccess(booking, user)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
         return ResponseEntity.ok(attachmentService.getByBookingId(bookingId));
     }
 
@@ -48,18 +58,21 @@ public class AttachmentController {
     }
 
     @GetMapping("/{id}/download")
-    public ResponseEntity<?> download(@PathVariable Long id) {
+    public ResponseEntity<?> download(@PathVariable Long id, HttpSession session) {
+        User user = SessionUtil.getCurrentUser(session);
         Attachment attachment = attachmentService.getById(id);
-        if (attachment == null) {
-            return ResponseEntity.notFound().build();
+        if (attachment == null) return ResponseEntity.notFound().build();
+
+        // IDOR fix: verify caller has access to the parent booking
+        Booking booking = bookingService.getById(attachment.getBookingId());
+        if (booking == null || !bookingService.canUserAccess(booking, user)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
         }
 
         Path filePath = attachmentService.getFilePath(attachment);
         try {
             Resource resource = new UrlResource(filePath.toUri());
-            if (!resource.exists()) {
-                return ResponseEntity.notFound().build();
-            }
+            if (!resource.exists()) return ResponseEntity.notFound().build();
 
             String contentType = attachment.getContentType() != null
                     ? attachment.getContentType() : "application/octet-stream";
