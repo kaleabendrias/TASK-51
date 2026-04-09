@@ -11,6 +11,7 @@ public interface NotificationMapper {
     NotificationRecord findById(@Param("id") Long id);
     List<NotificationRecord> findByUserId(@Param("userId") Long userId);
     List<NotificationRecord> findQueued();
+    List<NotificationRecord> findByStatus(@Param("status") String status);
     void insert(NotificationRecord record);
     void updateStatus(@Param("id") Long id, @Param("status") String status);
     void markRead(@Param("id") Long id);

@@ -58,6 +58,17 @@ public class ScheduledTaskService {
         }
     }
 
+    // Send overdue warnings for approaching payment deadlines every 5 minutes
+    @Scheduled(fixedRate = 300_000, initialDelay = 120_000)
+    public void sendOverdueWarnings() {
+        log.debug("Running overdue warning dispatcher");
+        try {
+            orderService.sendOverdueWarnings();
+        } catch (Exception e) {
+            log.error("Error in overdue warning dispatcher", e);
+        }
+    }
+
     // Cleanup expired idempotency tokens every 15 minutes
     @Scheduled(fixedRate = 900_000, initialDelay = 120_000)
     public void cleanupIdempotencyTokens() {

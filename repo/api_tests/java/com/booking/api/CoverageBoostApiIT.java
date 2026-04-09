@@ -140,9 +140,23 @@ class CoverageBoostApiIT extends BaseApiIT {
 
     @Test void chatImageDownload() throws Exception {
         MockHttpSession cust = loginAs("cust1");
+        MockHttpSession photo = loginAs("photo1");
+        MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("listingId", 1, "slotDate", "2027-07-01",
+                        "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
+            .andExpect(status().isOk()).andReturn();
+        int slotId = ((Number) parseMap(slotR).get("id")).intValue();
+        MvcResult orderR = mvc.perform(post("/api/orders").session(cust)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", "chat-dl-order")
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
+            .andExpect(status().isOk()).andReturn();
+        int orderId = ((Number) parseMap(orderR).get("id")).intValue();
+
         MvcResult sendR = mvc.perform(post("/api/messages/send").session(cust)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("recipientId", 2, "content", "hi for download"))))
+                .content(json(Map.of("recipientId", 2, "content", "hi for download", "orderId", orderId))))
             .andExpect(status().isOk()).andReturn();
         long convId = ((Number) parseMap(sendR).get("conversationId")).longValue();
 

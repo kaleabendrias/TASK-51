@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.booking.util.RoleGuard;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -76,5 +78,24 @@ public class NotificationController {
             prefMapper.update(pref);
         }
         return ResponseEntity.ok(prefMapper.findByUserId(user.getId()));
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<?> getReadyForExport(HttpSession session) {
+        RoleGuard.requireAdmin(session);
+        return ResponseEntity.ok(notificationService.getReadyForExport());
+    }
+
+    @PostMapping("/export")
+    @SuppressWarnings("unchecked")
+    public ResponseEntity<?> markExported(@RequestBody Map<String, Object> body, HttpSession session) {
+        RoleGuard.requireAdmin(session);
+        List<Number> ids = (List<Number>) body.get("ids");
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "ids list is required"));
+        }
+        int count = notificationService.markExported(
+                ids.stream().map(Number::longValue).toList());
+        return ResponseEntity.ok(Map.of("exported", count));
     }
 }

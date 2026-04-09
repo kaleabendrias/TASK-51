@@ -23,11 +23,25 @@ class SecurityHardeningApiIT extends BaseApiIT {
     @Test @Order(1) void chatAttachmentDownloadDeniedForNonParticipant() throws Exception {
         MockHttpSession cust1 = loginAs("cust1");
         MockHttpSession cust2 = loginAs("cust2");
+        MockHttpSession photo = loginAs("photo1");
 
-        // cust1 sends a message to photo1 with an image
+        // Create an order so we have an orderId for messaging
+        MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("listingId", 1, "slotDate", "2027-06-01",
+                        "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
+            .andExpect(status().isOk()).andReturn();
+        int slotId = ((Number) parseMap(slotR).get("id")).intValue();
+        MvcResult orderR = mvc.perform(post("/api/orders").session(cust1)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", "chat-idor-order")
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
+            .andExpect(status().isOk()).andReturn();
+        int orderId = ((Number) parseMap(orderR).get("id")).intValue();
+
         MvcResult sendR = mvc.perform(post("/api/messages/send").session(cust1)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("recipientId", 2, "content", "private img"))))
+                .content(json(Map.of("recipientId", 2, "content", "private img", "orderId", orderId))))
             .andExpect(status().isOk()).andReturn();
         long convId = ((Number) parseMap(sendR).get("conversationId")).longValue();
 

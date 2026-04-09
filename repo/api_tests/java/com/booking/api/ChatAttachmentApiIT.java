@@ -14,20 +14,40 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class ChatAttachmentApiIT extends BaseApiIT {
 
+    /** Creates an order and returns its ID, so messages have a valid orderId */
+    private int createOrderForChat() throws Exception {
+        MockHttpSession photo = loginAs("photo1");
+        MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("listingId", 1, "slotDate", "2027-05-" + (10 + (int)(Math.random()*20)),
+                        "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
+            .andExpect(status().isOk()).andReturn();
+        int slotId = ((Number) parseMap(slotR).get("id")).intValue();
+        MockHttpSession cust = loginAs("cust1");
+        MvcResult r = mvc.perform(post("/api/orders").session(cust)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", "chat-order-" + System.nanoTime())
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
+            .andExpect(status().isOk()).andReturn();
+        return ((Number) parseMap(r).get("id")).intValue();
+    }
+
     private long createConversation() throws Exception {
+        int orderId = createOrderForChat();
         MockHttpSession cust = loginAs("cust1");
         MvcResult r = mvc.perform(post("/api/messages/send").session(cust)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("recipientId", 2, "content", "Hi from chat test"))))
+                .content(json(Map.of("recipientId", 2, "content", "Hi", "orderId", orderId))))
             .andExpect(status().isOk()).andReturn();
         return ((Number) parseMap(r).get("conversationId")).longValue();
     }
 
     @Test void sendTextMessage() throws Exception {
+        int orderId = createOrderForChat();
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/messages/send").session(cust)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("recipientId", 2, "content", "Hello"))))
+                .content(json(Map.of("recipientId", 2, "content", "Hello", "orderId", orderId))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.conversationId").isNumber());
     }
@@ -76,7 +96,7 @@ class ChatAttachmentApiIT extends BaseApiIT {
     @Test void uploadTooLargeRejected() throws Exception {
         long convId = createConversation();
         MockHttpSession cust = loginAs("cust1");
-        byte[] bigFile = new byte[5 * 1024 * 1024 + 1]; // 5MB + 1 byte
+        byte[] bigFile = new byte[5 * 1024 * 1024 + 1];
         MockMultipartFile file = new MockMultipartFile("file", "big.jpg",
                 "image/jpeg", bigFile);
         mvc.perform(multipart("/api/messages/conversations/" + convId + "/image")
@@ -98,34 +118,30 @@ class ChatAttachmentApiIT extends BaseApiIT {
     @Test void messagesIncludeAttachmentInfo() throws Exception {
         long convId = createConversation();
         MockHttpSession cust = loginAs("cust1");
-        // Upload image
         MockMultipartFile file = new MockMultipartFile("file", "test.jpg",
                 "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8});
         mvc.perform(multipart("/api/messages/conversations/" + convId + "/image")
                 .file(file).session(cust))
             .andExpect(status().isOk());
-        // Fetch messages
         mvc.perform(get("/api/messages/conversations/" + convId).session(cust))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[-1].attachments").isArray());
     }
 
     @Test void readUnreadTracking() throws Exception {
+        int orderId = createOrderForChat();
         MockHttpSession cust = loginAs("cust1");
-        // Send message
         MvcResult r = mvc.perform(post("/api/messages/send").session(cust)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("recipientId", 2, "content", "Unread test"))))
+                .content(json(Map.of("recipientId", 2, "content", "Unread test", "orderId", orderId))))
             .andExpect(status().isOk()).andReturn();
         long convId = ((Number) parseMap(r).get("conversationId")).longValue();
 
-        // Photographer gets conversations -> should have unread
         MockHttpSession photo = loginAs("photo1");
         mvc.perform(get("/api/messages/conversations").session(photo))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id==" + convId + ")].unreadCount", hasItem(greaterThan(0))));
 
-        // Photographer reads messages -> marks as read
         mvc.perform(get("/api/messages/conversations/" + convId).session(photo))
             .andExpect(status().isOk());
     }

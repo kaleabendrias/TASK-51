@@ -78,7 +78,7 @@ public class NotificationService {
         for (NotificationRecord r : queued) {
             boolean dispatched = attemptDispatch(r);
             if (dispatched) {
-                notificationMapper.updateStatus(r.getId(), "SENT");
+                notificationMapper.updateStatus(r.getId(), "READY_FOR_EXPORT");
             } else {
                 notificationMapper.incrementRetry(r.getId());
                 int newCount = (r.getRetryCount() != null ? r.getRetryCount() : 0) + 1;
@@ -95,6 +95,19 @@ public class NotificationService {
 
     private boolean attemptDispatch(NotificationRecord record) {
         return dispatcher.dispatch(record);
+    }
+
+    public List<NotificationRecord> getReadyForExport() {
+        return notificationMapper.findByStatus("READY_FOR_EXPORT");
+    }
+
+    public int markExported(List<Long> ids) {
+        int count = 0;
+        for (Long id : ids) {
+            notificationMapper.updateStatus(id, "EXPORTED");
+            count++;
+        }
+        return count;
     }
 
     /**

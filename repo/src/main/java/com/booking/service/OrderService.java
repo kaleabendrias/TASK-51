@@ -150,6 +150,9 @@ public class OrderService {
         transition(order, OrderStatus.CONFIRMED, actor.getId(), "Order confirmed by photographer");
         notificationService.queueOrderNotification(order, "ORDER_CONFIRMED",
                 "Order " + order.getOrderNumber() + " has been confirmed");
+        // HOLD notification: customer must pay within deadline
+        notificationService.queueHoldNotification(order.getCustomerId(),
+                order.getOrderNumber(), "Awaiting payment — deadline: " + order.getPaymentDeadline());
         return orderMapper.findById(orderId);
     }
 
@@ -248,6 +251,9 @@ public class OrderService {
             transition(order, OrderStatus.REFUNDED, actor.getId(),
                     "Refund of " + amount + ": " + reason);
         }
+        // APPROVAL notification: inform customer of refund approval
+        notificationService.queueApprovalNotification(order.getCustomerId(),
+                order.getOrderNumber(), "Refund of $" + amount + " approved");
         order.setRefundAmount(amount);
         order.setStatus(order.getStatus().equals(OrderStatus.CANCELLED.name()) ?
                 OrderStatus.CANCELLED.name() : OrderStatus.REFUNDED.name());
@@ -330,6 +336,20 @@ public class OrderService {
             timeSlotService.releaseSlot(order.getTimeSlotId());
             notificationService.queueOrderNotification(order, "ORDER_AUTO_CANCELLED",
                     "Order " + order.getOrderNumber() + " cancelled due to payment timeout");
+        }
+    }
+
+    /**
+     * Sends overdue warnings for orders approaching payment deadline (within 10 minutes).
+     */
+    public void sendOverdueWarnings() {
+        LocalDateTime warningThreshold = LocalDateTime.now().plusMinutes(10);
+        List<Order> approaching = orderMapper.findUnpaidExpired(warningThreshold);
+        for (Order order : approaching) {
+            if ("CREATED".equals(order.getStatus())) {
+                notificationService.queueOverdueNotification(
+                        order.getCustomerId(), order.getOrderNumber());
+            }
         }
     }
 

@@ -29,13 +29,21 @@ class MessageServiceTest {
     private User user(Long id, String role) { User u = new User(); u.setId(id); u.setRoleName(role); return u; }
 
     @Test void sendMessageCreatesConversationIfNeeded() {
-        when(conversationMapper.findByParticipants(4L, 2L, null)).thenReturn(null);
+        com.booking.domain.Order order = new com.booking.domain.Order();
+        order.setId(1L); order.setCustomerId(4L); order.setPhotographerId(2L);
+        when(orderMapper.findById(1L)).thenReturn(order);
+        when(conversationMapper.findByParticipants(4L, 2L, 1L)).thenReturn(null);
         Conversation newConv = conv(4L, 2L);
         when(conversationMapper.findById(any())).thenReturn(newConv);
-        messageService.sendMessage(2L, "Hello", null, user(4L, "CUSTOMER"));
+        messageService.sendMessage(2L, "Hello", 1L, user(4L, "CUSTOMER"));
         verify(conversationMapper).insert(any());
         verify(messageMapper).insert(any());
         verify(conversationMapper).updateLastMessageAt(any());
+    }
+
+    @Test void customerWithoutOrderIdDenied() {
+        assertThrows(IllegalArgumentException.class,
+                () -> messageService.sendMessage(2L, "Hello", null, user(4L, "CUSTOMER")));
     }
 
     @Test void sendMessageUsesExistingConversation() {

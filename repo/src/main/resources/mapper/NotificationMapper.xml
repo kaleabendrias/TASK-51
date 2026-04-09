@@ -15,8 +15,12 @@
 
     <select id="findQueued" resultType="NotificationRecord">
         SELECT * FROM notification_queue
-        WHERE status = 'QUEUED' AND (terminal IS NULL OR terminal = false)
+        WHERE status IN ('QUEUED', 'RETRY') AND (terminal IS NULL OR terminal = false)
         ORDER BY created_at ASC LIMIT 100
+    </select>
+
+    <select id="findByStatus" resultType="NotificationRecord">
+        SELECT * FROM notification_queue WHERE status = #{status} ORDER BY created_at ASC
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">

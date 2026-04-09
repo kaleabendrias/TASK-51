@@ -27,12 +27,12 @@ class NotificationDispatchTest {
         com.booking.util.FieldEncryptor.configure("TestNotifKey1234!");
     }
 
-    @Test void processRetryQueueMarksAsSentOnSuccess() {
+    @Test void processRetryQueueMarksReadyForExportOnSuccess() {
         NotificationRecord r = new NotificationRecord(); r.setId(1L); r.setRetryCount(0);
         when(notificationMapper.findQueued()).thenReturn(List.of(r));
         when(dispatcher.dispatch(any())).thenReturn(true);
         notificationService.processRetryQueue();
-        verify(notificationMapper).updateStatus(1L, "SENT");
+        verify(notificationMapper).updateStatus(1L, "READY_FOR_EXPORT");
     }
 
     @Test void processRetryQueueIncrementsOnFailure() {

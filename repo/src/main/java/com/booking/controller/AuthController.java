@@ -40,15 +40,28 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody Map<String, String> data, HttpSession session) {
+        // Strict DTO validation
+        String username = data.get("username");
+        String email = data.get("email");
+        String password = data.get("password");
+        String fullName = data.get("fullName");
+
+        if (username == null || username.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Username is required"));
+        }
+        if (email == null || !email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Valid email is required"));
+        }
+        if (password == null || password.length() < 6) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Password must be at least 6 characters"));
+        }
+        if (fullName == null || fullName.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Full name is required"));
+        }
+
         try {
-            User user = authService.register(
-                    data.get("username"),
-                    data.get("email"),
-                    data.get("password"),
-                    data.get("fullName"),
-                    data.get("phone"),
-                    1L // Default to CUSTOMER role
-            );
+            User user = authService.register(username, email, password, fullName,
+                    data.get("phone"), 1L);
             SessionUtil.setCurrentUser(session, user);
             return ResponseEntity.ok(Map.of("message", "Registration successful", "userId", user.getId()));
         } catch (IllegalArgumentException e) {

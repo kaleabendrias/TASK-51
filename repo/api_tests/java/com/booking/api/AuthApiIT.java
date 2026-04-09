@@ -67,7 +67,7 @@ class AuthApiIT extends BaseApiIT {
         mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("username", "admin", "email", "dup@t.com",
-                        "password", "p", "fullName", "D"))))
+                        "password", "password123", "fullName", "Dup"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error").value(containsString("Username already exists")));
     }
