@@ -1,6 +1,7 @@
 package com.booking.api;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -81,15 +82,24 @@ class SearchFilterApiIT extends BaseApiIT {
     }
 
     @Test void availableTimeSlotsReturnsOnlyAvailable() throws Exception {
+        // Create a guaranteed-available slot so the test is independent of prior bookings.
+        MockHttpSession photo = loginAs("photo1");
+        MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("listingId", 1, "slotDate", "2027-08-10",
+                        "startTime", "09:00", "endTime", "10:00", "capacity", 5))))
+            .andExpect(status().isOk()).andReturn();
+
         MockHttpSession s = loginAs("cust1");
-        MvcResult result = mvc.perform(get("/api/timeslots/listing/1/available?start=2026-06-01&end=2026-06-30").session(s))
+        MvcResult result = mvc.perform(get("/api/timeslots/listing/1/available?start=2027-08-01&end=2027-08-31").session(s))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(greaterThan(0)))
             .andReturn();
 
         LocalDate today = LocalDate.now();
-        LocalDate rangeStart = LocalDate.of(2026, 6, 1);
-        LocalDate rangeEnd = LocalDate.of(2026, 6, 30);
+        LocalDate rangeStart = LocalDate.of(2027, 8, 1);
+        LocalDate rangeEnd = LocalDate.of(2027, 8, 31);
 
         // Every returned slot must belong to listing 1, have remaining capacity,
         // and fall within the requested date range (not expired).
