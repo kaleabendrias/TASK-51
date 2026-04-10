@@ -3,9 +3,13 @@ package com.booking.api;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -77,11 +81,20 @@ class RbacApiIT extends BaseApiIT {
     }
 
     @Test void photographerSeesOnlyOwnOrders() throws Exception {
-        // photo2 has no orders, should get empty list (not other photographer's orders)
+        // photo2 (user id=3) should only ever see orders where they are the photographer,
+        // never orders belonging to other photographers.
         MockHttpSession s = loginAs("photo2");
-        mvc.perform(get("/api/orders").session(s))
+        MvcResult result = mvc.perform(get("/api/orders").session(s))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
-            .andExpect(jsonPath("$.length()").value(0));
+            .andReturn();
+
+        List<?> orders = om.readValue(result.getResponse().getContentAsString(), List.class);
+        for (Object entry : orders) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> order = (Map<String, Object>) entry;
+            assertEquals(3, ((Number) order.get("photographerId")).intValue(),
+                "photo2 should only see orders assigned to their own user id (3)");
+        }
     }
 }

@@ -2,8 +2,13 @@ package com.booking.api;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.web.servlet.MvcResult;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -76,10 +81,24 @@ class SearchFilterApiIT extends BaseApiIT {
 
     @Test void availableTimeSlotsReturnsOnlyAvailable() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/timeslots/listing/1/available?start=2026-06-01&end=2026-06-30").session(s))
+        MvcResult result = mvc.perform(get("/api/timeslots/listing/1/available?start=2026-06-01&end=2026-06-30").session(s))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(greaterThan(0)))
-            .andExpect(jsonPath("$[0].listingId").value(1));
+            .andReturn();
+
+        // Every returned slot must belong to listing 1 and have remaining capacity
+        List<?> slots = om.readValue(result.getResponse().getContentAsString(), List.class);
+        for (Object entry : slots) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> slot = (Map<String, Object>) entry;
+            assertEquals(1, ((Number) slot.get("listingId")).intValue(),
+                "All slots must belong to listing 1");
+            int booked = ((Number) slot.get("bookedCount")).intValue();
+            int capacity = ((Number) slot.get("capacity")).intValue();
+            assertTrue(booked < capacity,
+                "Available endpoint must only return slots with remaining capacity, " +
+                "but got bookedCount=" + booked + " capacity=" + capacity);
+        }
     }
 
     @Test void listingDetailReturnsPhotographerName() throws Exception {
