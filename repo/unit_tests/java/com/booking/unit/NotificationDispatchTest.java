@@ -24,7 +24,7 @@ class NotificationDispatchTest {
     @InjectMocks NotificationService notificationService;
 
     @BeforeAll static void setup() {
-        com.booking.util.FieldEncryptor.configure("TestNotifKey1234!");
+        com.booking.util.FieldEncryptor.configure("TestNotifKey1234ForAES256Minimum!!");
     }
 
     @Test void processRetryQueueMarksReadyForExportOnSuccess() {

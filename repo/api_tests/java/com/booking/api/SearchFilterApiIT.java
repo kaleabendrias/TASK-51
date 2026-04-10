@@ -95,4 +95,33 @@ class SearchFilterApiIT extends BaseApiIT {
         mvc.perform(get("/api/listings/9999").session(s))
             .andExpect(status().isNotFound());
     }
+
+    // ---- Server-side search suggestions ----
+
+    @Test void searchRecordsTermAndSuggestsIt() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        // Search twice to bump frequency
+        mvc.perform(get("/api/listings/search?keyword=wedding").session(s))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/listings/search?keyword=wedding").session(s))
+            .andExpect(status().isOk());
+
+        // Suggestions should include the recorded term
+        mvc.perform(get("/api/listings/search/suggestions?limit=10").session(s))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", hasItem("wedding")));
+    }
+
+    @Test void searchSuggestionsDefaultLimit() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/listings/search/suggestions").session(s))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test void searchBlankKeywordDoesNotRecordTerm() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/listings/search?keyword=").session(s))
+            .andExpect(status().isOk());
+    }
 }

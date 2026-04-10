@@ -6,7 +6,6 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.time.LocalDate;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
@@ -15,33 +14,42 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class CoverageBoostApiIT extends BaseApiIT {
 
-    @Test void updateServiceById() throws Exception {
+    // ---- Legacy endpoints return 410 GONE ----
+
+    @Test void legacyServicesEndpointReturnsGone() throws Exception {
         MockHttpSession s = loginAs("admin");
         mvc.perform(put("/api/services/1").session(s).contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("name", "Updated Portrait", "price", 120.0,
                         "durationMinutes", 60, "active", true))))
-            .andExpect(status().isOk());
+            .andExpect(status().isGone());
     }
 
-    @Test void updateBookingStatus() throws Exception {
+    @Test void legacyBookingsEndpointReturnsGone() throws Exception {
         MockHttpSession s = loginAs("admin");
-        String d = LocalDate.now().plusDays(50).toString();
-        MvcResult r = mvc.perform(post("/api/bookings").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1, "customerId", 4, "bookingDate", d,
-                        "startTime", "09:00", "endTime", "10:00"))))
-            .andExpect(status().isOk()).andReturn();
-        int id = ((Number) parseMap(r).get("id")).intValue();
-        mvc.perform(patch("/api/bookings/" + id + "/status").session(s)
+        mvc.perform(get("/api/bookings").session(s))
+            .andExpect(status().isGone())
+            .andExpect(jsonPath("$.error", containsString("/api/orders")));
+        mvc.perform(patch("/api/bookings/1/status").session(s)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("status", "CANCELLED"))))
-            .andExpect(status().isOk());
+            .andExpect(status().isGone());
+    }
+
+    @Test void legacyAttachmentsEndpointReturnsGone() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/attachments/booking/1").session(s))
+            .andExpect(status().isGone())
+            .andExpect(jsonPath("$.error", containsString("/api/messages")));
+        mvc.perform(get("/api/attachments/1/download").session(s))
+            .andExpect(status().isGone());
+        mvc.perform(delete("/api/attachments/1").session(s))
+            .andExpect(status().isGone());
     }
 
     @Test void orderRefundByAdmin() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession admin = loginAs("admin");
         MockHttpSession photo = loginAs("photo1");
-        // Create a fresh slot
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 3, "slotDate", "2026-09-10",
@@ -55,7 +63,6 @@ class CoverageBoostApiIT extends BaseApiIT {
                 .content(json(Map.of("listingId", 3, "timeSlotId", freshSlot))))
             .andExpect(status().isOk()).andReturn();
         int id = ((Number) parseMap(r).get("id")).intValue();
-        // Full flow to COMPLETED
         mvc.perform(post("/api/orders/" + id + "/confirm").session(photo)
                 .header("Idempotency-Key", "cov-refund-c")).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/pay").session(cust)
@@ -68,7 +75,6 @@ class CoverageBoostApiIT extends BaseApiIT {
                 .header("Idempotency-Key", "cov-refund-co")).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/complete").session(photo)
                 .header("Idempotency-Key", "cov-refund-done")).andExpect(status().isOk());
-        // Admin refund
         mvc.perform(post("/api/orders/" + id + "/refund").session(admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "cov-refund-refund")
@@ -80,61 +86,28 @@ class CoverageBoostApiIT extends BaseApiIT {
     @Test void rescheduleOrder() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
-        // Create two fresh time slots for listing 1
         MvcResult slot1R = mvc.perform(post("/api/timeslots").session(photo)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-08-01",
                         "startTime", "14:00", "endTime", "15:00", "capacity", 1))))
             .andExpect(status().isOk()).andReturn();
         int slotA = ((Number) parseMap(slot1R).get("id")).intValue();
-
         MvcResult slot2R = mvc.perform(post("/api/timeslots").session(photo)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-08-02",
                         "startTime", "14:00", "endTime", "15:00", "capacity", 1))))
             .andExpect(status().isOk()).andReturn();
         int slotB = ((Number) parseMap(slot2R).get("id")).intValue();
-
-        // Create order on slot A
         MvcResult r = mvc.perform(post("/api/orders").session(cust)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "cov-resched-create")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotA))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(r).get("id")).intValue();
-
-        // Reschedule to slot B
         mvc.perform(post("/api/orders/" + orderId + "/reschedule").session(cust)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "cov-resched-do")
                 .content(json(Map.of("newTimeSlotId", slotB))))
-            .andExpect(status().isOk());
-    }
-
-    @Test void uploadAndDownloadAttachment() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        String d = LocalDate.now().plusDays(55).toString();
-        MvcResult bookR = mvc.perform(post("/api/bookings").session(s)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1, "bookingDate", d,
-                        "startTime", "10:00", "endTime", "11:00"))))
-            .andExpect(status().isOk()).andReturn();
-        int bookingId = ((Number) parseMap(bookR).get("id")).intValue();
-
-        MockMultipartFile file = new MockMultipartFile("file", "report.pdf",
-                "application/pdf", "fake pdf content".getBytes());
-        MvcResult upR = mvc.perform(multipart("/api/attachments/booking/" + bookingId)
-                .file(file).session(s))
-            .andExpect(status().isOk()).andReturn();
-        int attachId = ((Number) parseMap(upR).get("id")).intValue();
-
-        // Download
-        mvc.perform(get("/api/attachments/" + attachId + "/download").session(s))
-            .andExpect(status().isOk())
-            .andExpect(header().string("Content-Disposition", containsString("report.pdf")));
-
-        // Delete
-        mvc.perform(delete("/api/attachments/" + attachId).session(s))
             .andExpect(status().isOk());
     }
 
@@ -240,19 +213,55 @@ class CoverageBoostApiIT extends BaseApiIT {
             .andExpect(status().isForbidden());
     }
 
-    @Test void getBookingAccessDenied() throws Exception {
-        // cust2 trying to access cust1's booking
-        MockHttpSession admin = loginAs("admin");
-        String d = LocalDate.now().plusDays(60).toString();
-        MvcResult r = mvc.perform(post("/api/bookings").session(admin)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1, "customerId", 4, "bookingDate", d,
-                        "startTime", "09:00", "endTime", "10:00"))))
-            .andExpect(status().isOk()).andReturn();
-        int id = ((Number) parseMap(r).get("id")).intValue();
-
+    @Test void legacyBookingAccessReturnsGone() throws Exception {
         MockHttpSession cust2 = loginAs("cust2");
-        mvc.perform(get("/api/bookings/" + id).session(cust2))
-            .andExpect(status().isForbidden());
+        mvc.perform(get("/api/bookings/1").session(cust2))
+            .andExpect(status().isGone());
+    }
+
+    @Test void searchSuggestionsEndpoint() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/listings/search?keyword=portrait").session(s))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/listings/search/suggestions").session(s))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test void sseStreamEndpointConnects() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/messages/stream").session(s))
+            .andExpect(status().isOk());
+    }
+
+    @Test void disabledUserBlockedOnNextRequest() throws Exception {
+        MockHttpSession admin = loginAs("admin");
+        MockHttpSession cust2 = loginAs("cust2");
+        mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("enabled", false))))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/orders").session(cust2))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error", containsString("disabled")));
+        mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("enabled", true))))
+            .andExpect(status().isOk());
+    }
+
+    // ---- Photographer DTO hides sensitive fields ----
+    @Test void photographerDtoExcludesSensitiveFields() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/users/photographers").session(s))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").isNumber())
+            .andExpect(jsonPath("$[0].fullName").isNotEmpty())
+            .andExpect(jsonPath("$[0].username").isNotEmpty())
+            .andExpect(jsonPath("$[0].email").doesNotExist())
+            .andExpect(jsonPath("$[0].phone").doesNotExist())
+            .andExpect(jsonPath("$[0].enabled").doesNotExist())
+            .andExpect(jsonPath("$[0].roleId").doesNotExist())
+            .andExpect(jsonPath("$[0].passwordHash").doesNotExist());
     }
 }

@@ -41,6 +41,8 @@ public class AddressService {
         if (address.getCountry() == null) address.setCountry("US");
         validateAddress(address);
         if (Boolean.TRUE.equals(address.getIsDefault())) {
+            // Lock existing defaults via SELECT FOR UPDATE to prevent concurrent duplicates
+            addressMapper.lockByUserId(actor.getId());
             addressMapper.clearDefault(actor.getId());
         }
         addressMapper.insert(address);
@@ -57,6 +59,8 @@ public class AddressService {
         address.setUserId(existing.getUserId());
         validateAddress(address);
         if (Boolean.TRUE.equals(address.getIsDefault())) {
+            // Lock existing defaults via SELECT FOR UPDATE to prevent concurrent duplicates
+            addressMapper.lockByUserId(existing.getUserId());
             addressMapper.clearDefault(existing.getUserId());
         }
         addressMapper.update(address);

@@ -1,86 +1,34 @@
 package com.booking.controller;
 
-import com.booking.domain.Booking;
-import com.booking.domain.User;
-import com.booking.service.BookingService;
-import com.booking.util.SessionUtil;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
+/**
+ * Legacy /api/bookings surface — removed.
+ * All lifecycle logic is unified under /api/orders FSM.
+ * Returns 410 GONE directing clients to the orders API.
+ */
 @RestController
 @RequestMapping("/api/bookings")
 public class BookingController {
 
-    private final BookingService bookingService;
-
-    public BookingController(BookingService bookingService) {
-        this.bookingService = bookingService;
-    }
+    private static final Map<String, String> GONE_BODY =
+            Map.of("error", "The /api/bookings endpoint has been removed. Use /api/orders instead.");
 
     @GetMapping
-    public ResponseEntity<List<Booking>> list(HttpSession session) {
-        User user = SessionUtil.getCurrentUser(session);
-        return ResponseEntity.ok(bookingService.getForUser(user));
-    }
+    public ResponseEntity<?> list() { return ResponseEntity.status(410).body(GONE_BODY); }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> get(@PathVariable Long id, HttpSession session) {
-        User user = SessionUtil.getCurrentUser(session);
-        Booking booking = bookingService.getById(id);
-        if (booking == null) {
-            return ResponseEntity.notFound().build();
-        }
-        if (!bookingService.canUserAccess(booking, user)) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-        return ResponseEntity.ok(booking);
-    }
+    public ResponseEntity<?> get(@PathVariable Long id) { return ResponseEntity.status(410).body(GONE_BODY); }
 
     @PostMapping
-    public ResponseEntity<?> create(@RequestBody Booking booking, HttpSession session) {
-        User user = SessionUtil.getCurrentUser(session);
-        try {
-            if ("CUSTOMER".equals(user.getRoleName())) {
-                booking.setCustomerId(user.getId());
-            }
-            Booking created = bookingService.create(booking);
-            return ResponseEntity.ok(created);
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
+    public ResponseEntity<?> create() { return ResponseEntity.status(410).body(GONE_BODY); }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Booking booking,
-                                    HttpSession session) {
-        User user = SessionUtil.getCurrentUser(session);
-        try {
-            booking.setId(id);
-            Booking updated = bookingService.update(booking, user);
-            return ResponseEntity.ok(updated);
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        } catch (SecurityException e) {
-            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
-        }
-    }
+    public ResponseEntity<?> update(@PathVariable Long id) { return ResponseEntity.status(410).body(GONE_BODY); }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<?> updateStatus(@PathVariable Long id,
-                                          @RequestBody Map<String, String> body,
-                                          HttpSession session) {
-        User user = SessionUtil.getCurrentUser(session);
-        try {
-            bookingService.updateStatus(id, body.get("status"), user);
-            return ResponseEntity.ok(Map.of("message", "Status updated"));
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        } catch (SecurityException e) {
-            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
-        }
-    }
+    public ResponseEntity<?> updateStatus(@PathVariable Long id) { return ResponseEntity.status(410).body(GONE_BODY); }
 }

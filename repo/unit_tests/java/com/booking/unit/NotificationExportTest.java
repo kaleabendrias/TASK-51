@@ -27,7 +27,7 @@ class NotificationExportTest {
     @InjectMocks NotificationService notificationService;
 
     @BeforeAll static void setup() {
-        com.booking.util.FieldEncryptor.configure("TestExportKey1234");
+        com.booking.util.FieldEncryptor.configure("TestExportKey1234ForAES256Minimum!!");
     }
 
     @Test void getReadyForExportDelegates() {

@@ -1,102 +1,40 @@
 package com.booking.controller;
 
-import com.booking.domain.Attachment;
-import com.booking.domain.Booking;
-import com.booking.domain.User;
-import com.booking.service.AttachmentService;
-import com.booking.service.BookingService;
-import com.booking.util.SessionUtil;
-import jakarta.servlet.http.HttpSession;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.net.MalformedURLException;
-import java.nio.file.Path;
 import java.util.Map;
 
+/**
+ * Legacy /api/attachments surface — removed.
+ * File attachments are now handled through the chat/messaging system
+ * via /api/messages/conversations/{id}/image.
+ * Returns 410 GONE directing clients to the messaging API.
+ */
 @RestController
 @RequestMapping("/api/attachments")
 public class AttachmentController {
 
-    private final AttachmentService attachmentService;
-    private final BookingService bookingService;
-
-    public AttachmentController(AttachmentService attachmentService, BookingService bookingService) {
-        this.attachmentService = attachmentService;
-        this.bookingService = bookingService;
-    }
+    private static final Map<String, String> GONE_BODY =
+            Map.of("error", "The /api/attachments endpoint has been removed. Use /api/messages for file sharing.");
 
     @GetMapping("/booking/{bookingId}")
-    public ResponseEntity<?> listForBooking(@PathVariable Long bookingId, HttpSession session) {
-        User user = SessionUtil.getCurrentUser(session);
-        Booking booking = bookingService.getById(bookingId);
-        if (booking == null) return ResponseEntity.notFound().build();
-        if (!bookingService.canUserAccess(booking, user)) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-        return ResponseEntity.ok(attachmentService.getByBookingId(bookingId));
+    public ResponseEntity<?> listForBooking(@PathVariable Long bookingId) {
+        return ResponseEntity.status(410).body(GONE_BODY);
     }
 
     @PostMapping("/booking/{bookingId}")
-    public ResponseEntity<?> upload(@PathVariable Long bookingId,
-                                    @RequestParam("file") MultipartFile file,
-                                    HttpSession session) {
-        User user = SessionUtil.getCurrentUser(session);
-        try {
-            Attachment attachment = attachmentService.upload(bookingId, file, user);
-            return ResponseEntity.ok(attachment);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        } catch (SecurityException e) {
-            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
-        }
+    public ResponseEntity<?> upload(@PathVariable Long bookingId) {
+        return ResponseEntity.status(410).body(GONE_BODY);
     }
 
     @GetMapping("/{id}/download")
-    public ResponseEntity<?> download(@PathVariable Long id, HttpSession session) {
-        User user = SessionUtil.getCurrentUser(session);
-        Attachment attachment = attachmentService.getById(id);
-        if (attachment == null) return ResponseEntity.notFound().build();
-
-        // IDOR fix: verify caller has access to the parent booking
-        Booking booking = bookingService.getById(attachment.getBookingId());
-        if (booking == null || !bookingService.canUserAccess(booking, user)) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        Path filePath = attachmentService.getFilePath(attachment);
-        try {
-            Resource resource = new UrlResource(filePath.toUri());
-            if (!resource.exists()) return ResponseEntity.notFound().build();
-
-            String contentType = attachment.getContentType() != null
-                    ? attachment.getContentType() : "application/octet-stream";
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(contentType))
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"" + attachment.getOriginalName() + "\"")
-                    .body(resource);
-        } catch (MalformedURLException e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", "File not accessible"));
-        }
+    public ResponseEntity<?> download(@PathVariable Long id) {
+        return ResponseEntity.status(410).body(GONE_BODY);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable Long id, HttpSession session) {
-        User user = SessionUtil.getCurrentUser(session);
-        try {
-            attachmentService.delete(id, user);
-            return ResponseEntity.ok(Map.of("message", "Attachment deleted"));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        } catch (SecurityException e) {
-            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
-        }
+    public ResponseEntity<?> delete(@PathVariable Long id) {
+        return ResponseEntity.status(410).body(GONE_BODY);
     }
 }

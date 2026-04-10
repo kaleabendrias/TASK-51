@@ -3,6 +3,7 @@ package com.booking.filter;
 import com.booking.domain.BlacklistEntry;
 import com.booking.domain.User;
 import com.booking.mapper.BlacklistMapper;
+import com.booking.mapper.UserMapper;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -19,9 +20,11 @@ import java.io.IOException;
 public class AuthFilter implements Filter {
 
     private final BlacklistMapper blacklistMapper;
+    private final UserMapper userMapper;
 
-    public AuthFilter(BlacklistMapper blacklistMapper) {
+    public AuthFilter(BlacklistMapper blacklistMapper, UserMapper userMapper) {
         this.blacklistMapper = blacklistMapper;
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -47,9 +50,19 @@ public class AuthFilter implements Filter {
             return;
         }
 
+        // Revalidate user enabled status from DB on every request
+        User sessionUser = (User) session.getAttribute("currentUser");
+        User freshUser = userMapper.findById(sessionUser.getId());
+        if (freshUser == null || !Boolean.TRUE.equals(freshUser.getEnabled())) {
+            session.invalidate();
+            httpResp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            httpResp.setContentType("application/json");
+            httpResp.getWriter().write("{\"error\":\"Account is disabled\"}");
+            return;
+        }
+
         // Check blacklist status
-        User user = (User) session.getAttribute("currentUser");
-        BlacklistEntry bl = blacklistMapper.findActiveByUserId(user.getId());
+        BlacklistEntry bl = blacklistMapper.findActiveByUserId(sessionUser.getId());
         if (bl != null && !bl.isExpired()) {
             httpResp.setStatus(HttpServletResponse.SC_FORBIDDEN);
             httpResp.setContentType("application/json");

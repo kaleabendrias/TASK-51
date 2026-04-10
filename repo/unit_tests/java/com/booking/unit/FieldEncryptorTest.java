@@ -7,8 +7,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class FieldEncryptorTest {
 
+    private static final String TEST_KEY = "TestKeyForUnitTests32CharsPBKDF2!";
+
     @BeforeAll static void setup() {
-        FieldEncryptor.configure("TestKeyForUnit16!");
+        // Key is derived via PBKDF2 to a 32-byte AES-256 key
+        FieldEncryptor.configure(TEST_KEY);
     }
 
     @Test void encryptDecryptRoundTrip() {
@@ -45,11 +48,30 @@ class FieldEncryptorTest {
     }
 
     @Test void unconfiguredThrows() {
-        // FieldEncryptor.isConfigured() should be true after BeforeAll
         assertTrue(FieldEncryptor.isConfigured());
     }
 
     @Test void configureWithShortKeyThrows() {
+        // Keys under 32 chars must be rejected for AES-256
         assertThrows(IllegalArgumentException.class, () -> FieldEncryptor.configure("short"));
+        assertThrows(IllegalArgumentException.class, () -> FieldEncryptor.configure("only16characters"));
+        assertThrows(IllegalArgumentException.class, () -> FieldEncryptor.configure("exactly31chars_for_this_test!!!"));
+    }
+
+    @Test void configureWith32CharKeySucceeds() {
+        assertDoesNotThrow(() -> FieldEncryptor.configure("exactly32characters_for_testing!"));
+        // Restore original key
+        FieldEncryptor.configure(TEST_KEY);
+    }
+
+    @Test void pbkdf2DerivesConsistentKey() {
+        String consistentKey = "ConsistentKeyTestWithAtLeast32Ch";
+        FieldEncryptor.configure(consistentKey);
+        String enc = FieldEncryptor.encrypt("round-trip");
+        FieldEncryptor.configure(consistentKey);
+        assertEquals("round-trip", FieldEncryptor.decrypt(enc),
+                "PBKDF2 derivation should be deterministic for the same input");
+        // Restore original key
+        FieldEncryptor.configure(TEST_KEY);
     }
 }

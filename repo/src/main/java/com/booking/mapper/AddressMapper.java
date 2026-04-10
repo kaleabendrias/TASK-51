@@ -14,5 +14,6 @@ public interface AddressMapper {
     void insert(Address address);
     void update(Address address);
     void clearDefault(@Param("userId") Long userId);
+    List<Address> lockByUserId(@Param("userId") Long userId);
     void delete(@Param("id") Long id);
 }

@@ -188,4 +188,123 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
         org.junit.jupiter.api.Assertions.assertEquals(threadCount - 1, failures,
                 "All other threads should fail with oversell prevention");
     }
+
+    // ---- Auth Filter: disabled user rejected on active session ----
+
+    @Test @Order(8) void disabledUserBlockedImmediately() throws Exception {
+        MockHttpSession admin = loginAs("admin");
+        MockHttpSession cust2 = loginAs("cust2");
+
+        // Verify cust2 can access API normally
+        mvc.perform(get("/api/orders").session(cust2))
+            .andExpect(status().isOk());
+
+        // Admin disables cust2 account
+        mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("enabled", false))))
+            .andExpect(status().isOk());
+
+        // cust2's existing session should now be immediately rejected
+        mvc.perform(get("/api/orders").session(cust2))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error", containsString("disabled")));
+
+        // Re-enable for cleanup
+        mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("enabled", true))))
+            .andExpect(status().isOk());
+    }
+
+    // ---- Multi-threaded default address contention ----
+
+    @Test @Order(9) void concurrentDefaultAddressSetOnlyOneWins() throws Exception {
+        MockHttpSession cust = loginAs("cust1");
+
+        // Create two non-default addresses via API
+        MvcResult r1 = mvc.perform(post("/api/addresses").session(cust)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("label", "Race A", "street", "1 A St",
+                        "city", "Chicago", "state", "IL", "postalCode", "60601",
+                        "country", "US", "isDefault", false))))
+            .andExpect(status().isOk()).andReturn();
+        int addrA = ((Number) parseMap(r1).get("id")).intValue();
+
+        MvcResult r2 = mvc.perform(post("/api/addresses").session(cust)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("label", "Race B", "street", "2 B St",
+                        "city", "Chicago", "state", "IL", "postalCode", "60601",
+                        "country", "US", "isDefault", false))))
+            .andExpect(status().isOk()).andReturn();
+        int addrB = ((Number) parseMap(r2).get("id")).intValue();
+
+        // Concurrently set both as default
+        int threadCount = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch startGate = new CountDownLatch(1);
+        List<Future<Integer>> futures = new ArrayList<>();
+
+        for (int addrId : new int[]{addrA, addrB}) {
+            futures.add(executor.submit(() -> {
+                startGate.await();
+                MockHttpSession s = loginAs("cust1");
+                MvcResult r = mvc.perform(put("/api/addresses/" + addrId).session(s)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("label", "Default", "street", "1 St",
+                                "city", "Chicago", "state", "IL", "postalCode", "60601",
+                                "country", "US", "isDefault", true))))
+                    .andReturn();
+                return r.getResponse().getStatus();
+            }));
+        }
+
+        startGate.countDown();
+        for (Future<Integer> f : futures) {
+            f.get(10, TimeUnit.SECONDS);
+        }
+        executor.shutdown();
+
+        // Verify at most one default address exists
+        MvcResult addrList = mvc.perform(get("/api/addresses").session(cust))
+            .andExpect(status().isOk()).andReturn();
+        List<?> addresses = om.readValue(addrList.getResponse().getContentAsString(), List.class);
+        long defaultCount = addresses.stream()
+                .filter(a -> Boolean.TRUE.equals(((Map<?,?>) a).get("isDefault")))
+                .count();
+        org.junit.jupiter.api.Assertions.assertTrue(defaultCount <= 1,
+                "Expected at most 1 default address but found " + defaultCount);
+    }
+
+    // ---- Legacy /api/bookings returns 410 GONE ----
+
+    @Test @Order(10) void legacyBookingsEndpointGone() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/bookings").session(s))
+            .andExpect(status().isGone())
+            .andExpect(jsonPath("$.error", containsString("/api/orders")));
+    }
+
+    // ---- Search suggestions are server-side ----
+
+    @Test @Order(11) void serverSideSearchSuggestions() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+
+        // Search to record term
+        mvc.perform(get("/api/listings/search?keyword=portrait").session(s))
+            .andExpect(status().isOk());
+
+        // Verify suggestion returned
+        mvc.perform(get("/api/listings/search/suggestions").session(s))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", hasItem("portrait")));
+    }
+
+    // ---- SSE stream endpoint ----
+
+    @Test @Order(12) void sseStreamEndpointAvailable() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/messages/stream").session(s))
+            .andExpect(status().isOk());
+    }
 }

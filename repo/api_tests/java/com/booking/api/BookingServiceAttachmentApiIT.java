@@ -6,10 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.web.servlet.MvcResult;
 
-import java.time.LocalDate;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
@@ -19,125 +16,99 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class BookingServiceAttachmentApiIT extends BaseApiIT {
 
-    // ---- BOOKINGS ----
-    @Test @Order(1) void listBookings() throws Exception {
+    // ---- BOOKINGS (legacy surface returns 410 GONE) ----
+    @Test @Order(1) void listBookingsReturnsGone() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/bookings").session(s)).andExpect(status().isOk()).andExpect(jsonPath("$").isArray());
+        mvc.perform(get("/api/bookings").session(s))
+            .andExpect(status().isGone())
+            .andExpect(jsonPath("$.error", containsString("/api/orders")));
     }
 
-    @Test @Order(2) void createBooking() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        String futureDate = LocalDate.now().plusDays(30).toString();
-        mvc.perform(post("/api/bookings").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1, "bookingDate", futureDate,
-                        "startTime", "10:00", "endTime", "11:00", "location", "Test"))))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status").value("PENDING"));
-    }
-
-    @Test @Order(3) void createBookingPastDateFails() throws Exception {
+    @Test @Order(2) void createBookingReturnsGone() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(post("/api/bookings").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1, "bookingDate", "2020-01-01",
-                        "startTime", "10:00", "endTime", "11:00"))))
-            .andExpect(status().isBadRequest());
+                .content(json(Map.of("serviceId", 1))))
+            .andExpect(status().isGone());
     }
 
-    @Test @Order(4) void getBookingById() throws Exception {
-        // Create a booking first
+    @Test @Order(3) void getBookingReturnsGone() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        String futureDate = LocalDate.now().plusDays(31).toString();
-        MvcResult r = mvc.perform(post("/api/bookings").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1, "bookingDate", futureDate,
-                        "startTime", "14:00", "endTime", "15:00"))))
-            .andExpect(status().isOk()).andReturn();
-        int id = ((Number) parseMap(r).get("id")).intValue();
-        mvc.perform(get("/api/bookings/" + id).session(s)).andExpect(status().isOk())
-            .andExpect(jsonPath("$.id").value(id));
+        mvc.perform(get("/api/bookings/1").session(s))
+            .andExpect(status().isGone());
     }
 
-    @Test @Order(5) void getBookingNotFound() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/bookings/99999").session(s)).andExpect(status().isNotFound());
-    }
-
-    @Test @Order(6) void updateBookingStatus() throws Exception {
+    @Test @Order(4) void updateBookingStatusReturnsGone() throws Exception {
         MockHttpSession s = loginAs("admin");
-        String futureDate = LocalDate.now().plusDays(32).toString();
-        MvcResult r = mvc.perform(post("/api/bookings").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1, "customerId", 4, "bookingDate", futureDate,
-                        "startTime", "09:00", "endTime", "10:00"))))
-            .andExpect(status().isOk()).andReturn();
-        int id = ((Number) parseMap(r).get("id")).intValue();
-        mvc.perform(patch("/api/bookings/" + id + "/status").session(s).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(patch("/api/bookings/1/status").session(s).contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("status", "CONFIRMED"))))
-            .andExpect(status().isOk());
+            .andExpect(status().isGone());
     }
 
-    @Test @Order(7) void updateBookingStatusInvalid() throws Exception {
+    @Test @Order(5) void updateBookingReturnsGone() throws Exception {
         MockHttpSession s = loginAs("admin");
-        String futureDate = LocalDate.now().plusDays(33).toString();
-        MvcResult r = mvc.perform(post("/api/bookings").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1, "customerId", 4, "bookingDate", futureDate,
-                        "startTime", "09:00", "endTime", "10:00"))))
-            .andExpect(status().isOk()).andReturn();
-        int id = ((Number) parseMap(r).get("id")).intValue();
-        mvc.perform(patch("/api/bookings/" + id + "/status").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("status", "COMPLETED"))))
-            .andExpect(status().is4xxClientError());
+        mvc.perform(put("/api/bookings/1").session(s).contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("serviceId", 1))))
+            .andExpect(status().isGone());
     }
 
-    // ---- SERVICES ----
-    @Test @Order(10) void listActiveServices() throws Exception {
+    // ---- SERVICES (legacy surface returns 410 GONE) ----
+    @Test @Order(10) void listServicesReturnsGone() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/services").session(s)).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(greaterThan(0)));
+        mvc.perform(get("/api/services").session(s))
+            .andExpect(status().isGone())
+            .andExpect(jsonPath("$.error", containsString("/api/listings")));
     }
 
-    @Test @Order(11) void listAllServicesAdminOnly() throws Exception {
+    @Test @Order(11) void listAllServicesReturnsGone() throws Exception {
         MockHttpSession admin = loginAs("admin");
-        mvc.perform(get("/api/services/all").session(admin)).andExpect(status().isOk());
-        MockHttpSession cust = loginAs("cust1");
-        mvc.perform(get("/api/services/all").session(cust)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/services/all").session(admin))
+            .andExpect(status().isGone());
     }
 
-    @Test @Order(12) void createService() throws Exception {
+    @Test @Order(12) void createServiceReturnsGone() throws Exception {
         MockHttpSession s = loginAs("admin");
         mvc.perform(post("/api/services").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("name", "API Test Svc", "price", 75.0, "durationMinutes", 45))))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("API Test Svc"));
+                .content(json(Map.of("name", "X", "price", 75.0, "durationMinutes", 45))))
+            .andExpect(status().isGone());
     }
 
-    @Test @Order(13) void getServiceById() throws Exception {
+    @Test @Order(13) void getServiceReturnsGone() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/services/1").session(s)).andExpect(status().isOk())
-            .andExpect(jsonPath("$.name").isNotEmpty());
+        mvc.perform(get("/api/services/1").session(s))
+            .andExpect(status().isGone());
     }
 
-    @Test @Order(14) void getServiceNotFound() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/services/9999").session(s)).andExpect(status().isNotFound());
+    @Test @Order(14) void updateServiceReturnsGone() throws Exception {
+        MockHttpSession s = loginAs("admin");
+        mvc.perform(put("/api/services/1").session(s).contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("name", "X"))))
+            .andExpect(status().isGone());
     }
 
-    // ---- ATTACHMENTS ----
-    @Test @Order(20) void uploadAttachment() throws Exception {
+    // ---- ATTACHMENTS (legacy surface returns 410 GONE) ----
+    @Test @Order(20) void uploadAttachmentReturnsGone() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        // First create a booking
-        String futureDate = LocalDate.now().plusDays(34).toString();
-        MvcResult r = mvc.perform(post("/api/bookings").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1, "bookingDate", futureDate,
-                        "startTime", "10:00", "endTime", "11:00"))))
-            .andExpect(status().isOk()).andReturn();
-        int bookingId = ((Number) parseMap(r).get("id")).intValue();
-
-        MockMultipartFile file = new MockMultipartFile("file", "test.txt", "text/plain", "hello".getBytes());
-        mvc.perform(multipart("/api/attachments/booking/" + bookingId).file(file).session(s))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.originalName").value("test.txt"));
+        mvc.perform(post("/api/attachments/booking/1").session(s))
+            .andExpect(status().isGone())
+            .andExpect(jsonPath("$.error", containsString("/api/messages")));
     }
 
-    @Test @Order(21) void listAttachments() throws Exception {
+    @Test @Order(21) void listAttachmentsReturnsGone() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/attachments/booking/1").session(s)).andExpect(status().isOk());
+        mvc.perform(get("/api/attachments/booking/1").session(s))
+            .andExpect(status().isGone());
+    }
+
+    @Test @Order(22) void downloadAttachmentReturnsGone() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/attachments/1/download").session(s))
+            .andExpect(status().isGone());
+    }
+
+    @Test @Order(23) void deleteAttachmentReturnsGone() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(delete("/api/attachments/1").session(s))
+            .andExpect(status().isGone());
     }
 
     // ---- PAGE CONTROLLER ----
@@ -148,8 +119,16 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
     // ---- USERS ----
     @Test @Order(40) void listPhotographers() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/users/photographers").session(s)).andExpect(status().isOk())
-            .andExpect(jsonPath("$.length()").value(greaterThan(0)));
+        mvc.perform(get("/api/users/photographers").session(s))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(greaterThan(0)))
+            // DTO should only expose id, username, fullName — no email, phone, enabled
+            .andExpect(jsonPath("$[0].id").isNumber())
+            .andExpect(jsonPath("$[0].fullName").isNotEmpty())
+            .andExpect(jsonPath("$[0].email").doesNotExist())
+            .andExpect(jsonPath("$[0].phone").doesNotExist())
+            .andExpect(jsonPath("$[0].enabled").doesNotExist())
+            .andExpect(jsonPath("$[0].passwordHash").doesNotExist());
     }
 
     @Test @Order(41) void getUserSelf() throws Exception {

@@ -66,12 +66,11 @@ const Validate={
  }
 };
 
-// ---- LocalStorage helpers ----
+// ---- Server-side search suggestions ----
 const Store={
- get(k,def){try{const v=localStorage.getItem('bp_'+k);return v?JSON.parse(v):def}catch(e){return def}},
- set(k,v){try{localStorage.setItem('bp_'+k,JSON.stringify(v))}catch(e){}},
- addSearchTerm(t){if(!t)return;let terms=this.get('searches',[]);terms=terms.filter(x=>x!==t);terms.unshift(t);this.set('searches',terms.slice(0,15))},
- getSearchTerms(){return this.get('searches',[])}
+ // Search terms are now stored server-side and ranked by global frequency/recency
+ addSearchTerm(t){/* recorded server-side on search request */},
+ getSearchTerms(cb){API.get('/api/listings/search/suggestions?limit=15').done(terms=>cb(terms||[])).fail(()=>cb([]))}
 };
 
 // ---- Badge helper ----
@@ -185,12 +184,12 @@ const SearchPage={
   $('#search-btn').on('click',()=>{this.page=1;this.doSearch()});
   $('#search-input').on('keydown',e=>{if(e.key==='Enter')$('#search-btn').click()});
   $('#toggle-filters').on('click',()=>$('#filter-panel').toggleClass('collapsed'));
-  // Suggestions
-  $('#search-input').on('focus',()=>{const terms=Store.getSearchTerms();if(terms.length){const sl=$('#search-suggestions').empty().removeClass('hidden');terms.forEach(t=>sl.append(`<div class="sug-item">${escHtml(t)}</div>`));sl.find('.sug-item').on('click',function(){$('#search-input').val($(this).text());sl.addClass('hidden');$('#search-btn').click()})}});
+  // Suggestions (server-side popular terms ranked by frequency/recency)
+  $('#search-input').on('focus',()=>{Store.getSearchTerms(terms=>{if(terms.length){const sl=$('#search-suggestions').empty().removeClass('hidden');terms.forEach(t=>sl.append(`<div class="sug-item">${escHtml(t)}</div>`));sl.find('.sug-item').on('click',function(){$('#search-input').val($(this).text());sl.addClass('hidden');$('#search-btn').click()})}})});
   $('#search-input').on('blur',()=>setTimeout(()=>$('#search-suggestions').addClass('hidden'),200));
  },
  doSearch(){
-  const kw=$('#search-input').val();if(kw)Store.addSearchTerm(kw);
+  const kw=$('#search-input').val();
   const params=new URLSearchParams();
   if(kw)params.set('keyword',kw);
   if($('#f-category').val())params.set('category',$('#f-category').val());
@@ -485,7 +484,7 @@ const AddressPage={
 //  CHAT PAGE
 // ================================================================
 const ChatPage={
- activeConv:null,pollTimer:null,
+ activeConv:null,eventSource:null,
  render(C){
   C.html(`<div class="card" style="padding:0"><div class="chat-container">
    <div class="chat-sidebar" id="chat-sidebar"></div>
@@ -501,9 +500,21 @@ const ChatPage={
   $('#chat-send').on('click',()=>this.sendMsg());
   $('#chat-input').on('keydown',e=>{if(e.key==='Enter')this.sendMsg()});
   $('#chat-img-input').on('change',e=>{if(e.target.files[0])this.sendImage(e.target.files[0])});
-  // Poll for new messages every 5 seconds
-  if(this.pollTimer)clearInterval(this.pollTimer);
-  this.pollTimer=setInterval(()=>{if(this.activeConv)this.loadMessages(this.activeConv,true)},5000);
+  // SSE push-based real-time messaging (replaces legacy 5-second polling)
+  this.connectSse();
+ },
+ connectSse(){
+  if(this.eventSource){this.eventSource.close();this.eventSource=null}
+  this.eventSource=new EventSource('/api/messages/stream');
+  this.eventSource.addEventListener('new-message',e=>{
+   const data=JSON.parse(e.data);
+   if(this.activeConv&&data.conversationId===this.activeConv){this.loadMessages(this.activeConv,true)}
+   this.loadConversations();
+  });
+  this.eventSource.onerror=()=>{
+   if(this.eventSource){this.eventSource.close();this.eventSource=null}
+   setTimeout(()=>this.connectSse(),5000);
+  };
  },
  loadConversations(){
   API.get('/api/messages/conversations').done(convs=>{
@@ -779,24 +790,14 @@ const BlacklistAdminPage={
 // ================================================================
 const ServicesAdminPage={
  render(C){
-  C.html(`<div class="card"><div class="card-header"><h2>Services</h2><button class="btn btn-primary" id="add-svc">+ New Service</button></div>
-   <div class="table-wrap"><table id="svc-table"><thead><tr><th>Name</th><th>Price</th><th>Duration</th><th>Active</th><th></th></tr></thead><tbody></tbody></table></div></div>
-   <div class="modal-overlay" id="svc-modal"><div class="modal"><div class="modal-header"><h3 id="svc-modal-title">New Service</h3><button class="modal-close" id="close-svc">&times;</button></div>
-    <form id="svc-form"><input type="hidden" id="sf-id"/>
-     <div class="form-group"><label>Name</label><input class="form-control" id="sf-name" data-validate="required"/><div class="invalid-feedback"></div></div>
-     <div class="form-group"><label>Description</label><textarea class="form-control" id="sf-desc"></textarea></div>
-     <div class="form-row"><div class="form-group"><label>Price ($)</label><input type="number" step="0.01" class="form-control" id="sf-price" data-validate="required"/><div class="invalid-feedback"></div></div>
-      <div class="form-group"><label>Duration (min)</label><input type="number" class="form-control" id="sf-dur" data-validate="required"/><div class="invalid-feedback"></div></div></div>
-     <div class="form-check"><input type="checkbox" id="sf-active" checked/><label for="sf-active">Active</label></div>
-     <div class="modal-footer"><button type="button" class="btn btn-outline" id="cancel-svc">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
-    </form></div></div>`);
-  Validate.live('#svc-form');
-  $('#add-svc').on('click',()=>this.openForm());$('#close-svc,#cancel-svc').on('click',()=>$('#svc-modal').removeClass('active'));
-  $('#svc-form').on('submit',e=>{e.preventDefault();this.save()});this.load();
- },
- load(){API.get('/api/services/all').done(svcs=>{const tb=$('#svc-table tbody').empty();svcs.forEach(s=>tb.append(`<tr><td>${escHtml(s.name)}</td><td>$${s.price}</td><td>${s.durationMinutes} min</td><td>${s.active?'Yes':'No'}</td><td><button class="btn btn-sm btn-outline edit-svc" data-id="${s.id}">Edit</button></td></tr>`));tb.find('.edit-svc').on('click',function(){API.get('/api/services/'+$(this).data('id')).done(s=>ServicesAdminPage.openForm(s))})})},
- openForm(s){$('#svc-form')[0].reset();$('#sf-id').val(s?s.id:'');$('#svc-modal-title').text(s?'Edit Service':'New Service');if(s){$('#sf-name').val(s.name);$('#sf-desc').val(s.description);$('#sf-price').val(s.price);$('#sf-dur').val(s.durationMinutes);$('#sf-active').prop('checked',s.active)}$('#svc-modal').addClass('active')},
- save(){if(!Validate.checkForm('#svc-form'))return;const id=$('#sf-id').val();const data={name:$('#sf-name').val(),description:$('#sf-desc').val(),price:parseFloat($('#sf-price').val()),durationMinutes:parseInt($('#sf-dur').val()),active:$('#sf-active').is(':checked')};(id?API.put('/api/services/'+id,data):API.post('/api/services',data)).done(()=>{$('#svc-modal').removeClass('active');this.load()}).fail(xhr=>alert(xhr.responseJSON?.error||'Failed'))}
+  C.html(`<div class="card"><div class="card-header"><h2>Services</h2></div>
+   <div class="text-center text-muted" style="padding:3rem">
+    <p>The legacy Services system has been retired.</p>
+    <p>All service offerings are now managed through <strong>Listings</strong>.</p>
+    <button class="btn btn-primary mt-1" id="go-listings">Go to Listings</button>
+   </div></div>`);
+  $('#go-listings').on('click',()=>App.navigate('my-listings'));
+ }
 };
 
 // ================================================================

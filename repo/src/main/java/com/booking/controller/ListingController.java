@@ -1,8 +1,10 @@
 package com.booking.controller;
 
 import com.booking.domain.Listing;
+import com.booking.domain.SearchTerm;
 import com.booking.domain.User;
 import com.booking.service.ListingService;
+import com.booking.service.SearchTermService;
 import com.booking.util.RoleGuard;
 import com.booking.util.SessionUtil;
 import jakarta.servlet.http.HttpSession;
@@ -10,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -17,9 +20,11 @@ import java.util.Map;
 public class ListingController {
 
     private final ListingService listingService;
+    private final SearchTermService searchTermService;
 
-    public ListingController(ListingService listingService) {
+    public ListingController(ListingService listingService, SearchTermService searchTermService) {
         this.listingService = listingService;
+        this.searchTermService = searchTermService;
     }
 
     @GetMapping
@@ -43,9 +48,19 @@ public class ListingController {
                                     @RequestParam(required = false) String sortBy,
                                     @RequestParam(defaultValue = "1") int page,
                                     @RequestParam(defaultValue = "20") int size) {
+        // Record search term server-side for popular suggestions
+        if (keyword != null && !keyword.isBlank()) {
+            searchTermService.recordTerm(keyword);
+        }
         return ResponseEntity.ok(listingService.search(keyword, category, minPrice, maxPrice,
                 location, locationState, locationCity, locationNeighborhood,
                 theme, transportMode, minRating, availableDate, sortBy, page, size));
+    }
+
+    @GetMapping("/search/suggestions")
+    public ResponseEntity<?> searchSuggestions(@RequestParam(defaultValue = "15") int limit) {
+        List<SearchTerm> popular = searchTermService.getPopular(limit);
+        return ResponseEntity.ok(popular.stream().map(SearchTerm::getTerm).toList());
     }
 
     @GetMapping("/{id}")

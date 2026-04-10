@@ -3,10 +3,8 @@ package com.booking.api;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.time.LocalDate;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
@@ -15,38 +13,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class SecurityFixesApiIT extends BaseApiIT {
 
-    // ---- IDOR: Attachment download requires booking access ----
+    // ---- Legacy attachment endpoint returns 410 ----
 
-    @Test void attachmentDownloadDeniedForNonOwner() throws Exception {
-        MockHttpSession admin = loginAs("admin");
-        MockHttpSession cust2 = loginAs("cust2");
-        String d = LocalDate.now().plusDays(70).toString();
-
-        // Create booking as admin for cust1
-        MvcResult br = mvc.perform(post("/api/bookings").session(admin)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1, "customerId", 4, "bookingDate", d,
-                        "startTime", "09:00", "endTime", "10:00"))))
-            .andExpect(status().isOk()).andReturn();
-        int bookingId = ((Number) parseMap(br).get("id")).intValue();
-
-        // Upload attachment as admin
-        MockMultipartFile file = new MockMultipartFile("file", "secret.pdf", "application/pdf", "secret".getBytes());
-        MvcResult ar = mvc.perform(multipart("/api/attachments/booking/" + bookingId).file(file).session(admin))
-            .andExpect(status().isOk()).andReturn();
-        int attachId = ((Number) parseMap(ar).get("id")).intValue();
-
-        // cust2 tries to download — should be denied (IDOR fix)
-        mvc.perform(get("/api/attachments/" + attachId + "/download").session(cust2))
-            .andExpect(status().isForbidden());
-    }
-
-    @Test void attachmentListDeniedForNonOwner() throws Exception {
-        MockHttpSession cust2 = loginAs("cust2");
-        // Booking 1 belongs to cust1 seed data — cust2 should not see its attachments
-        // (If there's no booking with that ID in this test run, 404 is also acceptable)
-        mvc.perform(get("/api/attachments/booking/1").session(cust2))
-            .andExpect(status().is4xxClientError());
+    @Test void attachmentEndpointReturnsGone() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/attachments/booking/1").session(s))
+            .andExpect(status().isGone())
+            .andExpect(jsonPath("$.error", containsString("/api/messages")));
+        mvc.perform(get("/api/attachments/1/download").session(s))
+            .andExpect(status().isGone());
     }
 
     // ---- Data redaction: phone masked in User responses ----
@@ -65,6 +40,22 @@ class SecurityFixesApiIT extends BaseApiIT {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.phone").doesNotExist())
             .andExpect(jsonPath("$.passwordHash").doesNotExist());
+    }
+
+    // ---- Photographer DTO shields sensitive data ----
+
+    @Test void photographerDiscoveryHidesSensitiveFields() throws Exception {
+        MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/users/photographers").session(s))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").isNumber())
+            .andExpect(jsonPath("$[0].fullName").isNotEmpty())
+            .andExpect(jsonPath("$[0].email").doesNotExist())
+            .andExpect(jsonPath("$[0].phone").doesNotExist())
+            .andExpect(jsonPath("$[0].enabled").doesNotExist())
+            .andExpect(jsonPath("$[0].passwordHash").doesNotExist())
+            .andExpect(jsonPath("$[0].roleId").doesNotExist())
+            .andExpect(jsonPath("$[0].department").doesNotExist());
     }
 
     // ---- Health endpoint: details not exposed without auth ----
@@ -101,7 +92,6 @@ class SecurityFixesApiIT extends BaseApiIT {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
 
-        // Create order
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "scoped-test-key")
@@ -109,7 +99,6 @@ class SecurityFixesApiIT extends BaseApiIT {
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(cr).get("id")).intValue();
 
-        // Same key but different action (CONFIRM) should NOT collide
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo)
                 .header("Idempotency-Key", "scoped-test-key"))
             .andExpect(status().isOk())
@@ -196,19 +185,16 @@ class SecurityFixesApiIT extends BaseApiIT {
 
     @Test void notificationReadAndArchive() throws Exception {
         MockHttpSession cust = loginAs("cust1");
-        // Trigger a notification by creating an order
         mvc.perform(post("/api/orders").session(cust)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "notif-test-1")
                 .content(json(Map.of("listingId", 3, "timeSlotId", 4))))
             .andExpect(status().isOk());
 
-        // List notifications
         MvcResult nr = mvc.perform(get("/api/notifications").session(cust))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray()).andReturn();
 
-        // If any notifications exist, test mark read + archive
         var notifs = om.readValue(nr.getResponse().getContentAsString(), java.util.List.class);
         if (!notifs.isEmpty()) {
             int notifId = ((Number) ((java.util.Map<?,?>) notifs.get(0)).get("id")).intValue();

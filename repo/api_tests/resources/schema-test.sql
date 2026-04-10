@@ -268,3 +268,10 @@ CREATE TABLE IF NOT EXISTS points_adjustments (
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (adjusted_by) REFERENCES users(id)
 );
+CREATE TABLE IF NOT EXISTS search_terms (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    term          VARCHAR(255) NOT NULL UNIQUE,
+    frequency     INT          NOT NULL DEFAULT 1,
+    last_used_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.booking.mapper.SearchTermMapper">
+
+    <select id="findPopular" resultType="SearchTerm">
+        SELECT * FROM search_terms
+        ORDER BY frequency DESC, last_used_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findByTerm" resultType="SearchTerm">
+        SELECT * FROM search_terms WHERE term = #{term}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO search_terms (term, frequency, last_used_at)
+        VALUES (#{term}, 1, CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="incrementFrequency">
+        UPDATE search_terms
+        SET frequency = frequency + 1, last_used_at = CURRENT_TIMESTAMP
+        WHERE term = #{term}
+    </update>
+</mapper>

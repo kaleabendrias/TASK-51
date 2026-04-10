@@ -34,12 +34,12 @@ class RbacApiIT extends BaseApiIT {
         mvc.perform(get("/api/users").session(s)).andExpect(status().isForbidden());
     }
 
-    @Test void photographerCannotCreateService() throws Exception {
+    @Test void servicesEndpointReturnsGone() throws Exception {
         MockHttpSession s = loginAs("photo1");
         mvc.perform(post("/api/services").session(s)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("name", "X", "price", 50, "durationMinutes", 30))))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isGone());
     }
 
     @Test void customerCannotCreateListing() throws Exception {
@@ -59,7 +59,7 @@ class RbacApiIT extends BaseApiIT {
         MockHttpSession s = loginAs("admin");
         mvc.perform(get("/api/users").session(s)).andExpect(status().isOk());
         mvc.perform(get("/api/blacklist").session(s)).andExpect(status().isOk());
-        mvc.perform(get("/api/services/all").session(s)).andExpect(status().isOk());
+        mvc.perform(get("/api/listings").session(s)).andExpect(status().isOk());
         mvc.perform(get("/api/points/rules").session(s)).andExpect(status().isOk());
         mvc.perform(get("/api/points/adjustments").session(s)).andExpect(status().isOk());
     }

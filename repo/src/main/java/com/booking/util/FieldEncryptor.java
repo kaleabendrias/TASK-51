@@ -1,10 +1,13 @@
 package com.booking.util;
 
 import javax.crypto.Cipher;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.security.spec.KeySpec;
 import java.util.Base64;
 
 public final class FieldEncryptor {
@@ -12,6 +15,9 @@ public final class FieldEncryptor {
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_TAG_LENGTH = 128;
     private static final int IV_LENGTH = 12;
+    private static final int AES_KEY_LENGTH = 32; // 256 bits
+    private static final int PBKDF2_ITERATIONS = 100_000;
+    private static final byte[] PBKDF2_SALT = "BookingPortalFieldEncryptorSalt!".getBytes(StandardCharsets.UTF_8);
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private static volatile SecretKeySpec keySpec;
@@ -19,13 +25,18 @@ public final class FieldEncryptor {
     private FieldEncryptor() {}
 
     public static void configure(String key) {
-        if (key == null || key.length() < 16) {
-            throw new IllegalArgumentException("Encryption key must be at least 16 characters");
+        if (key == null || key.length() < 32) {
+            throw new IllegalArgumentException("Encryption key must be at least 32 characters for AES-256");
         }
-        byte[] raw = key.getBytes(StandardCharsets.UTF_8);
-        byte[] sized = new byte[16];
-        System.arraycopy(raw, 0, sized, 0, Math.min(raw.length, 16));
-        keySpec = new SecretKeySpec(sized, "AES");
+        try {
+            // Derive a proper 32-byte (256-bit) key via PBKDF2
+            KeySpec spec = new PBEKeySpec(key.toCharArray(), PBKDF2_SALT, PBKDF2_ITERATIONS, AES_KEY_LENGTH * 8);
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            byte[] derived = factory.generateSecret(spec).getEncoded();
+            keySpec = new SecretKeySpec(derived, "AES");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to derive encryption key via PBKDF2", e);
+        }
     }
 
     private static SecretKeySpec getKeySpec() {

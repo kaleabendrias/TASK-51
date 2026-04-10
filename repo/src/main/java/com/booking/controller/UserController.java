@@ -1,5 +1,6 @@
 package com.booking.controller;
 
+import com.booking.domain.PhotographerDto;
 import com.booking.domain.User;
 import com.booking.service.UserService;
 import com.booking.util.SessionUtil;
@@ -7,6 +8,7 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -29,7 +31,10 @@ public class UserController {
 
     @GetMapping("/photographers")
     public ResponseEntity<?> photographers() {
-        return ResponseEntity.ok(userService.getPhotographers());
+        List<PhotographerDto> dtos = userService.getPhotographers().stream()
+                .map(PhotographerDto::new)
+                .toList();
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/{id}")

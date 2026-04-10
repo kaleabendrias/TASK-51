@@ -30,6 +30,10 @@
         UPDATE addresses SET is_default = false WHERE user_id = #{userId}
     </update>
 
+    <select id="lockByUserId" resultType="Address">
+        SELECT * FROM addresses WHERE user_id = #{userId} FOR UPDATE
+    </select>
+
     <delete id="delete">
         DELETE FROM addresses WHERE id = #{id}
     </delete>

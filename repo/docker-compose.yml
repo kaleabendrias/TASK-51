@@ -5,10 +5,10 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root_pass_2024
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
       MYSQL_DATABASE: booking_portal
-      MYSQL_USER: booking_user
-      MYSQL_PASSWORD: booking_pass_2024
+      MYSQL_USER: ${MYSQL_USER:-booking_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
     volumes:
       - mysql-data:/var/lib/mysql
       - ./docker/mysql/01-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
@@ -18,8 +18,9 @@ services:
       - ./docker/mysql/05-migration-v3.sql:/docker-entrypoint-initdb.d/05-migration-v3.sql:ro
       - ./docker/mysql/06-migration-v4.sql:/docker-entrypoint-initdb.d/06-migration-v4.sql:ro
       - ./docker/mysql/07-migration-v5.sql:/docker-entrypoint-initdb.d/07-migration-v5.sql:ro
+      - ./docker/mysql/08-migration-v6.sql:/docker-entrypoint-initdb.d/08-migration-v6.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_pass_2024"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -41,9 +42,9 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/booking_portal?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      SPRING_DATASOURCE_USERNAME: booking_user
-      SPRING_DATASOURCE_PASSWORD: booking_pass_2024
-      ENCRYPTION_KEY: BookingPortalProdKey2024SecureRotate
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-booking_app}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
     volumes:
       - uploads-data:/app/uploads
     healthcheck:

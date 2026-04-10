@@ -22,6 +22,8 @@ INSERT INTO time_slots (id, listing_id, slot_date, start_time, end_time, capacit
 INSERT INTO addresses (id, user_id, label, street, city, state, postal_code, country, is_default) VALUES
 (1, 4, 'Home', '123 Main St', 'Springfield', 'IL', '62701', 'US', TRUE),
 (2, 4, 'Work', '456 Office Rd', 'Springfield', 'IL', '62702', 'US', FALSE);
+INSERT INTO bookings (id, customer_id, photographer_id, service_id, booking_date, start_time, end_time, status, location, notes, total_price) VALUES
+(1, 4, 2, 1, '2026-08-01', '09:00:00', '10:00:00', 'PENDING', 'Downtown', 'Test booking', 100.00);
 INSERT INTO notification_preferences (user_id) VALUES (1), (2), (3), (4), (5);
 INSERT INTO points_rules (id, name, description, points, scope, trigger_event, active) VALUES
 (1, 'ORDER_PAYMENT', 'Points for payment', 10, 'INDIVIDUAL', 'ORDER_PAID', TRUE),

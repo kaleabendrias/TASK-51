@@ -1,5 +1,6 @@
 package com.booking.service;
 
+import com.booking.controller.ChatSseController;
 import com.booking.domain.Conversation;
 import com.booking.domain.Message;
 import com.booking.domain.Order;
@@ -7,10 +8,12 @@ import com.booking.domain.User;
 import com.booking.mapper.ConversationMapper;
 import com.booking.mapper.MessageMapper;
 import com.booking.mapper.OrderMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class MessageService {
@@ -18,6 +21,9 @@ public class MessageService {
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final OrderMapper orderMapper;
+
+    @Autowired(required = false)
+    private ChatSseController chatSseController;
 
     public MessageService(ConversationMapper conversationMapper, MessageMapper messageMapper,
                           OrderMapper orderMapper) {
@@ -94,6 +100,7 @@ public class MessageService {
         messageMapper.insert(msg);
 
         conversationMapper.updateLastMessageAt(conv.getId());
+        pushToRecipient(conv, sender.getId(), msg);
         return msg;
     }
 
@@ -114,6 +121,7 @@ public class MessageService {
         messageMapper.insert(msg);
 
         conversationMapper.updateLastMessageAt(conversationId);
+        pushToRecipient(conv, sender.getId(), msg);
         return msg;
     }
 
@@ -123,5 +131,16 @@ public class MessageService {
             !"ADMINISTRATOR".equals(user.getRoleName())) {
             throw new SecurityException("Not a participant in this conversation");
         }
+    }
+
+    private void pushToRecipient(Conversation conv, Long senderId, Message msg) {
+        if (chatSseController == null) return;
+        Long recipientId = conv.getParticipantOne().equals(senderId)
+                ? conv.getParticipantTwo() : conv.getParticipantOne();
+        chatSseController.pushMessageEvent(recipientId,
+                Map.of("conversationId", conv.getId(),
+                       "messageId", msg.getId(),
+                       "senderId", senderId,
+                       "content", msg.getContent()));
     }
 }
