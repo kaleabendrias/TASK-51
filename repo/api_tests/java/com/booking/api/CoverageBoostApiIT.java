@@ -14,36 +14,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class CoverageBoostApiIT extends BaseApiIT {
 
-    // ---- Legacy endpoints return 410 GONE ----
+    // ---- Legacy endpoints removed (controllers deleted — returns 404) ----
 
-    @Test void legacyServicesEndpointReturnsGone() throws Exception {
+    @Test void legacyEndpointsFullyRemoved() throws Exception {
         MockHttpSession s = loginAs("admin");
-        mvc.perform(put("/api/services/1").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("name", "Updated Portrait", "price", 120.0,
-                        "durationMinutes", 60, "active", true))))
-            .andExpect(status().isGone());
-    }
-
-    @Test void legacyBookingsEndpointReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("admin");
-        mvc.perform(get("/api/bookings").session(s))
-            .andExpect(status().isGone())
-            .andExpect(jsonPath("$.error", containsString("/api/orders")));
-        mvc.perform(patch("/api/bookings/1/status").session(s)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("status", "CANCELLED"))))
-            .andExpect(status().isGone());
-    }
-
-    @Test void legacyAttachmentsEndpointReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/attachments/booking/1").session(s))
-            .andExpect(status().isGone())
-            .andExpect(jsonPath("$.error", containsString("/api/messages")));
-        mvc.perform(get("/api/attachments/1/download").session(s))
-            .andExpect(status().isGone());
-        mvc.perform(delete("/api/attachments/1").session(s))
-            .andExpect(status().isGone());
+        mvc.perform(get("/api/bookings").session(s)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/services").session(s)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/attachments/booking/1").session(s)).andExpect(status().isNotFound());
     }
 
     @Test void orderRefundByAdmin() throws Exception {
@@ -213,10 +190,10 @@ class CoverageBoostApiIT extends BaseApiIT {
             .andExpect(status().isForbidden());
     }
 
-    @Test void legacyBookingAccessReturnsGone() throws Exception {
+    @Test void legacyBookingAccessReturns404() throws Exception {
         MockHttpSession cust2 = loginAs("cust2");
         mvc.perform(get("/api/bookings/1").session(cust2))
-            .andExpect(status().isGone());
+            .andExpect(status().isNotFound());
     }
 
     @Test void searchSuggestionsEndpoint() throws Exception {

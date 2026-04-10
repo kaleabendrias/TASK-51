@@ -13,15 +13,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class SecurityFixesApiIT extends BaseApiIT {
 
-    // ---- Legacy attachment endpoint returns 410 ----
+    // ---- Legacy attachment endpoint removed (controller deleted — returns 404) ----
 
-    @Test void attachmentEndpointReturnsGone() throws Exception {
+    @Test void attachmentEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/attachments/booking/1").session(s))
-            .andExpect(status().isGone())
-            .andExpect(jsonPath("$.error", containsString("/api/messages")));
+            .andExpect(status().isNotFound());
         mvc.perform(get("/api/attachments/1/download").session(s))
-            .andExpect(status().isGone());
+            .andExpect(status().isNotFound());
     }
 
     // ---- Data redaction: phone masked in User responses ----

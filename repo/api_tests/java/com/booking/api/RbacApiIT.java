@@ -34,12 +34,12 @@ class RbacApiIT extends BaseApiIT {
         mvc.perform(get("/api/users").session(s)).andExpect(status().isForbidden());
     }
 
-    @Test void servicesEndpointReturnsGone() throws Exception {
+    @Test void servicesEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("photo1");
         mvc.perform(post("/api/services").session(s)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("name", "X", "price", 50, "durationMinutes", 30))))
-            .andExpect(status().isGone());
+            .andExpect(status().isNotFound());
     }
 
     @Test void customerCannotCreateListing() throws Exception {

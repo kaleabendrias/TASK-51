@@ -75,11 +75,11 @@ Only requires **Docker**. Tests run inside a Maven container with an H2 in-memor
 ### Test Layout
 
 ```
-unit_tests/             # ~284 unit tests (Mockito, no Spring context)
-  java/com/booking/unit/   32 test classes
+unit_tests/             # Unit tests (Mockito, no Spring context)
+  java/com/booking/unit/   28 test classes
   resources/               H2 schema + seed data
 
-api_tests/              # ~163 integration tests (full Spring Boot + H2)
+api_tests/              # Integration tests (full Spring Boot + H2)
   java/com/booking/api/    14 test classes (including base class)
   resources/               application-test.yml, schema, seed data
 ```
@@ -88,7 +88,7 @@ Tests **must** live in `unit_tests/` or `api_tests/`. The Maven enforcer plugin 
 
 ### Coverage Gate
 
-JaCoCo enforces **>= 90% line coverage** on the merged (unit + API) execution data. Legacy classes behind retired 410 endpoints (e.g. `AttachmentService`, `BookingService`) are excluded from the coverage check. Coverage reports are written to `test-results/` after each run.
+JaCoCo enforces **>= 90% line coverage** on the merged (unit + API) execution data with no exclusions — all legacy classes have been physically deleted. Coverage reports are written to `test-results/` after each run.
 
 ## Verification Steps
 
@@ -293,15 +293,18 @@ curl -s -b /tmp/admin.txt http://localhost:8080/api/points/adjustments
 
 No business rules leak into controllers (they call service methods and return results). No business logic in SQL mappers (they execute parameterized queries only).
 
-### Retired Legacy Endpoints
+### Purged Legacy Surfaces
 
-The following endpoints have been fully removed and return **410 GONE**. All booking operations are unified under the `/api/orders` FSM:
+The following endpoints, their controllers, services, domain classes, mappers, and MyBatis XML have been **physically deleted from the source tree** — not merely gated behind 410 stubs. Requests to these paths return 404 from Spring's default handler:
 
-| Retired Surface | Replacement | Error Message |
-|----------------|-------------|---------------|
-| `/api/bookings/**` | `/api/orders` | `Use /api/orders instead.` |
-| `/api/services/**` | `/api/listings` | `Use /api/listings instead.` |
-| `/api/attachments/**` | `/api/messages` | `Use /api/messages for file sharing.` |
+| Deleted Surface | Replacement | Deleted Artifacts |
+|----------------|-------------|-------------------|
+| `/api/bookings/**` | `/api/orders` | `BookingController`, `BookingService`, `BookingMapper`, `Booking`, `BookingStatus` |
+| `/api/services/**` | `/api/listings` | `ServiceController`, `PhotoServiceService`, `ServiceMapper`, `Service` |
+| `/api/attachments/**` | `/api/messages` | `AttachmentController`, `AttachmentService`, `AttachmentMapper`, `Attachment` |
+| *(unused)* | *(unused)* | `Role`, `RoleMapper` |
+
+No 410 controllers remain. No JaCoCo exclusions are needed. The order-centric FSM (`/api/orders`) is the sole workflow for all booking operations.
 
 ### Transactional Guarantees
 
@@ -588,18 +591,18 @@ This validation runs during Spring's `@PostConstruct` phase (via `EncryptionConf
 +-- src/main/
 |   +-- java/com/booking/
 |   |   +-- config/             # AppConfig, WebConfig, EncryptionConfig, SecretsValidator, DataInitializer
-|   |   +-- controller/         # REST controllers (15 files, 3 are 410 stubs)
-|   |   +-- domain/             # Entity classes + enums + DTOs (19 files)
+|   |   +-- controller/         # REST controllers (13 files)
+|   |   +-- domain/             # Entity classes, enums, DTOs (19 files)
 |   |   +-- filter/             # AuthFilter (session + enabled check + blacklist)
 |   |   +-- mapper/             # MyBatis mapper interfaces (17 files)
-|   |   +-- service/            # Business logic services (14 files)
+|   |   +-- service/            # Business logic services (15 files)
 |   |   +-- util/               # FieldEncryptor, MaskUtil, RoleGuard, SessionUtil
 |   +-- resources/
 |       +-- application.yml     # Config (secrets via env vars, not hardcoded)
 |       +-- mapper/             # MyBatis XML (17 files)
 |       +-- static/             # jQuery SPA (HTML, CSS, JS)
-+-- unit_tests/                 # ~284 unit tests
-|   +-- java/com/booking/unit/  # 32 test classes
++-- unit_tests/                 # Unit tests (Mockito, no Spring context)
+|   +-- java/com/booking/unit/  # 28 test classes
 |   +-- resources/
 +-- api_tests/                  # ~163 API integration tests
     +-- java/com/booking/api/   # 14 test classes

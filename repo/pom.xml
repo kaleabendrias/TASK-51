@@ -190,17 +190,6 @@ Tests must live in unit_tests/ or api_tests/ only. Found files under src/test/ja
                         <goals><goal>check</goal></goals>
                         <configuration>
                             <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
-                            <!-- Exclude legacy classes retired behind 410 GONE endpoints -->
-                            <excludes>
-                                <exclude>com/booking/service/AttachmentService.class</exclude>
-                                <exclude>com/booking/service/BookingService.class</exclude>
-                                <exclude>com/booking/service/PhotoServiceService.class</exclude>
-                                <exclude>com/booking/domain/Booking.class</exclude>
-                                <exclude>com/booking/domain/BookingStatus.class</exclude>
-                                <exclude>com/booking/domain/Attachment.class</exclude>
-                                <exclude>com/booking/domain/Service.class</exclude>
-                                <exclude>com/booking/domain/Role.class</exclude>
-                            </excludes>
                             <rules>
                                 <rule>
                                     <element>BUNDLE</element>

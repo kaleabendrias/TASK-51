@@ -276,13 +276,12 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
                 "Expected at most 1 default address but found " + defaultCount);
     }
 
-    // ---- Legacy /api/bookings returns 410 GONE ----
+    // ---- Legacy /api/bookings removed (controller deleted) ----
 
-    @Test @Order(10) void legacyBookingsEndpointGone() throws Exception {
+    @Test @Order(10) void legacyBookingsEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/bookings").session(s))
-            .andExpect(status().isGone())
-            .andExpect(jsonPath("$.error", containsString("/api/orders")));
+            .andExpect(status().isNotFound());
     }
 
     // ---- Search suggestions are server-side ----

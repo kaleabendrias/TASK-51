@@ -16,99 +16,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class BookingServiceAttachmentApiIT extends BaseApiIT {
 
-    // ---- BOOKINGS (legacy surface returns 410 GONE) ----
-    @Test @Order(1) void listBookingsReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/bookings").session(s))
-            .andExpect(status().isGone())
-            .andExpect(jsonPath("$.error", containsString("/api/orders")));
-    }
+    // ---- REMOVED SURFACES: /api/bookings, /api/services, /api/attachments ----
+    // Controllers have been physically deleted. Requests return 404.
 
-    @Test @Order(2) void createBookingReturnsGone() throws Exception {
+    @Test @Order(1) void legacyBookingsEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("cust1");
+        mvc.perform(get("/api/bookings").session(s)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/bookings/1").session(s)).andExpect(status().isNotFound());
         mvc.perform(post("/api/bookings").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1))))
-            .andExpect(status().isGone());
+                .content(json(Map.of("serviceId", 1)))).andExpect(status().isNotFound());
     }
 
-    @Test @Order(3) void getBookingReturnsGone() throws Exception {
+    @Test @Order(2) void legacyServicesEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/bookings/1").session(s))
-            .andExpect(status().isGone());
+        mvc.perform(get("/api/services").session(s)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/services/1").session(s)).andExpect(status().isNotFound());
     }
 
-    @Test @Order(4) void updateBookingStatusReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("admin");
-        mvc.perform(patch("/api/bookings/1/status").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("status", "CONFIRMED"))))
-            .andExpect(status().isGone());
-    }
-
-    @Test @Order(5) void updateBookingReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("admin");
-        mvc.perform(put("/api/bookings/1").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("serviceId", 1))))
-            .andExpect(status().isGone());
-    }
-
-    // ---- SERVICES (legacy surface returns 410 GONE) ----
-    @Test @Order(10) void listServicesReturnsGone() throws Exception {
+    @Test @Order(3) void legacyAttachmentsEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/services").session(s))
-            .andExpect(status().isGone())
-            .andExpect(jsonPath("$.error", containsString("/api/listings")));
-    }
-
-    @Test @Order(11) void listAllServicesReturnsGone() throws Exception {
-        MockHttpSession admin = loginAs("admin");
-        mvc.perform(get("/api/services/all").session(admin))
-            .andExpect(status().isGone());
-    }
-
-    @Test @Order(12) void createServiceReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("admin");
-        mvc.perform(post("/api/services").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("name", "X", "price", 75.0, "durationMinutes", 45))))
-            .andExpect(status().isGone());
-    }
-
-    @Test @Order(13) void getServiceReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/services/1").session(s))
-            .andExpect(status().isGone());
-    }
-
-    @Test @Order(14) void updateServiceReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("admin");
-        mvc.perform(put("/api/services/1").session(s).contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("name", "X"))))
-            .andExpect(status().isGone());
-    }
-
-    // ---- ATTACHMENTS (legacy surface returns 410 GONE) ----
-    @Test @Order(20) void uploadAttachmentReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        mvc.perform(post("/api/attachments/booking/1").session(s))
-            .andExpect(status().isGone())
-            .andExpect(jsonPath("$.error", containsString("/api/messages")));
-    }
-
-    @Test @Order(21) void listAttachmentsReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/attachments/booking/1").session(s))
-            .andExpect(status().isGone());
-    }
-
-    @Test @Order(22) void downloadAttachmentReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/attachments/1/download").session(s))
-            .andExpect(status().isGone());
-    }
-
-    @Test @Order(23) void deleteAttachmentReturnsGone() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        mvc.perform(delete("/api/attachments/1").session(s))
-            .andExpect(status().isGone());
+        mvc.perform(get("/api/attachments/booking/1").session(s)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/attachments/1/download").session(s)).andExpect(status().isNotFound());
     }
 
     // ---- PAGE CONTROLLER ----
@@ -122,7 +50,6 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
         mvc.perform(get("/api/users/photographers").session(s))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(greaterThan(0)))
-            // DTO should only expose id, username, fullName — no email, phone, enabled
             .andExpect(jsonPath("$[0].id").isNumber())
             .andExpect(jsonPath("$[0].fullName").isNotEmpty())
             .andExpect(jsonPath("$[0].email").doesNotExist())
