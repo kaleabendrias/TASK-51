@@ -1,12 +1,10 @@
-FROM booking-portal-tests:latest AS deps
-
 FROM maven:3.9-eclipse-temurin-21
 
 WORKDIR /build
 
-# Reuse cached Maven repository from previous build
-COPY --from=deps /root/.m2 /root/.m2
+# Cache dependencies including plugin deps
 COPY pom.xml .
+RUN mvn dependency:go-offline dependency:resolve-plugins -B || true
 
 # Copy production source
 COPY src ./src

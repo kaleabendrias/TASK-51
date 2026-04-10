@@ -1,11 +1,14 @@
-FROM booking-portal-tests:latest AS build
+FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
-RUN mvn package -DskipTests -U -B
+COPY pom.xml .
+RUN mvn dependency:go-offline -B || true
+COPY src ./src
+RUN mvn package -DskipTests -B
 
-FROM repo-webapp:latest AS runtime-base
-
-FROM runtime-base
+FROM eclipse-temurin:21-jre
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends curl openssl && rm -rf /var/lib/apt/lists/*
+RUN mkdir -p /app/uploads
 COPY --from=build /build/target/*.jar app.jar
 COPY docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
