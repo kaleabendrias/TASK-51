@@ -32,6 +32,7 @@
         SELECT * FROM time_slots
         WHERE listing_id = #{listingId}
           AND slot_date BETWEEN #{startDate} AND #{endDate}
+          AND slot_date &gt;= CURRENT_DATE
           AND booked_count &lt; capacity
         ORDER BY slot_date, start_time
     </select>

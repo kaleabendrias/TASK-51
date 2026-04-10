@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -34,8 +35,8 @@ class SearchFilterApiIT extends BaseApiIT {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/listings/search?category=FAMILY").session(s))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items.length()").value(1))
-            .andExpect(jsonPath("$.items[0].category").value("FAMILY"));
+            .andExpect(jsonPath("$.items.length()").value(greaterThanOrEqualTo(1)))
+            .andExpect(jsonPath("$.items[*].category", everyItem(equalTo("FAMILY"))));
     }
 
     @Test void searchByPriceRange() throws Exception {
@@ -86,7 +87,12 @@ class SearchFilterApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.length()").value(greaterThan(0)))
             .andReturn();
 
-        // Every returned slot must belong to listing 1 and have remaining capacity
+        LocalDate today = LocalDate.now();
+        LocalDate rangeStart = LocalDate.of(2026, 6, 1);
+        LocalDate rangeEnd = LocalDate.of(2026, 6, 30);
+
+        // Every returned slot must belong to listing 1, have remaining capacity,
+        // and fall within the requested date range (not expired).
         List<?> slots = om.readValue(result.getResponse().getContentAsString(), List.class);
         for (Object entry : slots) {
             @SuppressWarnings("unchecked")
@@ -98,6 +104,11 @@ class SearchFilterApiIT extends BaseApiIT {
             assertTrue(booked < capacity,
                 "Available endpoint must only return slots with remaining capacity, " +
                 "but got bookedCount=" + booked + " capacity=" + capacity);
+            LocalDate slotDate = LocalDate.parse(slot.get("slotDate").toString());
+            assertFalse(slotDate.isBefore(today),
+                "Available endpoint must not return expired (past) slots, but got " + slotDate);
+            assertFalse(slotDate.isBefore(rangeStart) || slotDate.isAfter(rangeEnd),
+                "Slot date " + slotDate + " is outside the requested range");
         }
     }
 

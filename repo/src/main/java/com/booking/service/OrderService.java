@@ -53,11 +53,21 @@ public class OrderService {
     }
 
     public List<Order> getForUser(User user) {
-        return switch (user.getRoleName()) {
+        List<Order> orders = switch (user.getRoleName()) {
             case "CUSTOMER" -> orderMapper.findByCustomerId(user.getId());
             case "PHOTOGRAPHER", "SERVICE_PROVIDER" -> orderMapper.findByPhotographerId(user.getId());
             default -> orderMapper.findAll();
         };
+        // Defense-in-depth: strip any order the authenticated user should not see.
+        // The SQL WHERE clause already filters, but this guards against query bugs
+        // or future refactors that widen the result set.
+        if ("ADMINISTRATOR".equals(user.getRoleName())) {
+            return orders;
+        }
+        return orders.stream()
+                .filter(o -> o.getCustomerId().equals(user.getId())
+                          || o.getPhotographerId().equals(user.getId()))
+                .toList();
     }
 
     public List<OrderAction> getAuditTrail(Long orderId) {
