@@ -64,17 +64,19 @@ public class ListingService {
         return result;
     }
 
-    public Listing create(Listing listing, User photographer) {
-        if (!"PHOTOGRAPHER".equals(photographer.getRoleName()) &&
-            !"ADMINISTRATOR".equals(photographer.getRoleName())) {
-            throw new SecurityException("Only photographers can create listings");
+    private static final java.util.Set<String> PROVIDER_ROLES = java.util.Set.of(
+            "PHOTOGRAPHER", "SERVICE_PROVIDER", "ADMINISTRATOR");
+
+    public Listing create(Listing listing, User provider) {
+        if (!PROVIDER_ROLES.contains(provider.getRoleName())) {
+            throw new SecurityException("Only service providers can create listings");
         }
         if (listing.getPhotographerId() == null) {
-            listing.setPhotographerId(photographer.getId());
+            listing.setPhotographerId(provider.getId());
         }
-        if (!"ADMINISTRATOR".equals(photographer.getRoleName()) &&
-            !listing.getPhotographerId().equals(photographer.getId())) {
-            throw new SecurityException("Cannot create listings for other photographers");
+        if (!"ADMINISTRATOR".equals(provider.getRoleName()) &&
+            !listing.getPhotographerId().equals(provider.getId())) {
+            throw new SecurityException("Cannot create listings for other providers");
         }
         validateListing(listing);
         if (listing.getActive() == null) listing.setActive(true);

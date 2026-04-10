@@ -89,12 +89,12 @@ const App={
  checkAuth(){API.get('/api/auth/me').done(u=>{this.user=u;this.showApp()}).fail(()=>this.showLogin())},
  showLogin(){$('#app-main').addClass('hidden');$('#login-page').removeClass('hidden');LoginPage.init()},
  showApp(){$('#login-page').addClass('hidden');$('#app-main').removeClass('hidden');this.renderHeader();this.navigate(this.defaultPage())},
- defaultPage(){return{CUSTOMER:'search',PHOTOGRAPHER:'photo-dashboard',ADMINISTRATOR:'admin-dashboard'}[this.user.role]||'search'},
+ defaultPage(){return{CUSTOMER:'search',PHOTOGRAPHER:'photo-dashboard',SERVICE_PROVIDER:'photo-dashboard',ADMINISTRATOR:'admin-dashboard'}[this.user.role]||'search'},
  renderHeader(){
   const nav=$('#main-nav').empty();const r=this.user.role;
   if(r==='CUSTOMER'){
    nav.append('<a href="#" data-page="search">Browse</a><a href="#" data-page="orders">My Orders</a><a href="#" data-page="addresses">Addresses</a><a href="#" data-page="chat">Messages</a><a href="#" data-page="notifications">Alerts</a><a href="#" data-page="points">Points</a>');
-  }else if(r==='PHOTOGRAPHER'){
+  }else if(r==='PHOTOGRAPHER'||r==='SERVICE_PROVIDER'){
    nav.append('<a href="#" data-page="photo-dashboard">Dashboard</a><a href="#" data-page="my-listings">Listings</a><a href="#" data-page="orders">Orders</a><a href="#" data-page="chat">Messages</a><a href="#" data-page="notifications">Alerts</a><a href="#" data-page="points">Points</a>');
   }else{
    nav.append('<a href="#" data-page="admin-dashboard">Dashboard</a><a href="#" data-page="search">Browse</a><a href="#" data-page="orders">Orders</a><a href="#" data-page="users-admin">Users</a><a href="#" data-page="blacklist-admin">Blacklist</a><a href="#" data-page="services-admin">Services</a><a href="#" data-page="chat">Messages</a><a href="#" data-page="notifications">Alerts</a><a href="#" data-page="points-admin">Points</a>');
@@ -229,7 +229,7 @@ const SearchPage={
      <div class="price">$${l.price}</div>
      <p class="text-muted mt-1" style="font-size:.8rem">${escHtml((l.description||'').substring(0,100))}</p>
      <div class="meta mt-1"><span>${l.durationMinutes} min</span><span>${escHtml(l.category||'')}</span><span>${escHtml(l.location||'')}</span></div>
-     <div class="meta"><span>by ${escHtml(l.photographerName)}</span></div>
+     <div class="meta"><span>by ${escHtml(l.photographerName||'')}</span></div>
     </div></div>`);
   });
   grid.find('.listing-card').on('click',function(){ListingDetailPage.listingId=$(this).data('id');App.navigate('listing-detail')});
@@ -261,8 +261,8 @@ const ListingDetailPage={
     <div class="d-flex gap-2 items-center mt-1"><span class="price" style="font-size:1.4rem;font-weight:700;color:var(--pri)">$${l.price}</span>
      <span class="text-muted">${l.durationMinutes} min</span><span class="badge badge-confirmed">${escHtml(l.category||'')}</span></div>
     <p class="mt-1">${escHtml(l.description||'')}</p>
-    <div class="mt-1 text-muted"><strong>Location:</strong> ${escHtml(l.location||'N/A')} &bull; <strong>Photographer:</strong> ${escHtml(l.photographerName)}</div>
-    <div class="mt-1 text-muted"><strong>Estimated Duration / ETA:</strong> ${l.durationMinutes} minutes from scheduled start time</div>
+    <div class="mt-1 text-muted"><strong>Location:</strong> ${escHtml(l.location||'N/A')} &bull; <strong>Provider:</strong> ${escHtml(l.photographerName)}</div>
+    <div class="mt-1 text-muted"><strong>Duration:</strong> ${l.durationMinutes} min &bull; Pickup ETA: 30 min after end &bull; Courier ETA: 2 hrs after end</div>
    </div>
    <div class="card"><div class="card-header"><h2>Available Time Slots</h2></div>
     <div class="table-wrap"><table id="slots-table"><thead><tr><th>Date</th><th>Time</th><th>Available</th><th></th></tr></thead><tbody></tbody></table></div>
@@ -359,7 +359,7 @@ const OrderDetailPage={
     ${tracker}
     <div class="form-row mt-2">
      <div><strong>Listing:</strong> ${escHtml(o.listingTitle)}<br><strong>Date:</strong> ${o.slotDate||'-'}<br><strong>Time:</strong> ${o.slotTime||'-'}<br><strong>Customer:</strong> ${escHtml(o.customerName)}</div>
-     <div><strong>Photographer:</strong> ${escHtml(o.photographerName)}<br><strong>Total:</strong> $${o.totalPrice}<br><strong>Paid:</strong> $${o.paidAmount||0}<br><strong>Payment Due:</strong> ${fmtDateTime(o.paymentDeadline)}</div>
+     <div><strong>Provider:</strong> ${escHtml(o.photographerName)}<br><strong>Total:</strong> $${o.totalPrice}<br><strong>Paid:</strong> $${o.paidAmount||0}<br><strong>Payment Due:</strong> ${fmtDateTime(o.paymentDeadline)}${o.deliveryEta?'<br><strong>Delivery ETA:</strong> '+fmtDateTime(o.deliveryEta):''}${o.pickupEta?'<br><strong>Pickup ETA:</strong> '+fmtDateTime(o.pickupEta):''}</div>
     </div>
     ${o.cancelReason?'<div class="alert alert-error mt-1"><strong>Cancel Reason:</strong> '+escHtml(o.cancelReason)+'</div>':''}
     ${o.refundAmount&&o.refundAmount>0?'<div class="alert alert-info mt-1"><strong>Refund:</strong> $'+o.refundAmount+'</div>':''}
@@ -377,15 +377,16 @@ const OrderDetailPage={
  },
  renderActions(o){
   const acts=$('#order-actions').empty();const r=App.user.role;const s=o.status;
-  if(s==='CREATED'&&(r==='PHOTOGRAPHER'||r==='ADMINISTRATOR'))
+  const isProvider=r==='PHOTOGRAPHER'||r==='SERVICE_PROVIDER'||r==='ADMINISTRATOR';
+  if(s==='CREATED'&&isProvider)
    acts.append('<button class="btn btn-success" data-act="confirm">Confirm</button>');
   if(s==='CONFIRMED'&&(r==='CUSTOMER'||r==='ADMINISTRATOR'))
    acts.append('<button class="btn btn-primary" data-act="pay">Record Payment</button>');
-  if(s==='PAID'&&(r==='PHOTOGRAPHER'||r==='ADMINISTRATOR'))
+  if(s==='PAID'&&isProvider)
    acts.append('<button class="btn btn-warning" data-act="check-in">Check In</button>');
-  if(s==='CHECKED_IN'&&(r==='PHOTOGRAPHER'||r==='ADMINISTRATOR'))
+  if(s==='CHECKED_IN'&&isProvider)
    acts.append('<button class="btn btn-warning" data-act="check-out">Check Out</button>');
-  if(s==='CHECKED_OUT'&&(r==='PHOTOGRAPHER'||r==='ADMINISTRATOR'))
+  if(s==='CHECKED_OUT'&&isProvider)
    acts.append('<button class="btn btn-success" data-act="complete">Complete</button>');
   if(['CREATED','CONFIRMED','PAID','CHECKED_IN'].includes(s))
    acts.append('<button class="btn btn-danger" data-act="cancel">Cancel</button>');

@@ -72,7 +72,7 @@ public class ListingController {
 
     @GetMapping("/my")
     public ResponseEntity<?> myListings(HttpSession session) {
-        User user = RoleGuard.requireRole(session, "PHOTOGRAPHER", "ADMINISTRATOR");
+        User user = RoleGuard.requireRole(session, "PHOTOGRAPHER", "SERVICE_PROVIDER", "ADMINISTRATOR");
         return ResponseEntity.ok(listingService.getByPhotographer(user.getId()));
     }
 

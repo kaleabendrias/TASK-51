@@ -23,6 +23,7 @@ class ListingServiceTest {
     @InjectMocks ListingService listingService;
 
     User photographer() { User u = new User(); u.setId(2L); u.setRoleName("PHOTOGRAPHER"); return u; }
+    User serviceProvider() { User u = new User(); u.setId(6L); u.setRoleName("SERVICE_PROVIDER"); return u; }
     User customer() { User u = new User(); u.setId(4L); u.setRoleName("CUSTOMER"); return u; }
     User admin() { User u = new User(); u.setId(1L); u.setRoleName("ADMINISTRATOR"); return u; }
 
@@ -90,6 +91,13 @@ class ListingServiceTest {
         Listing l = new Listing(); l.setPhotographerId(2L);
         when(listingMapper.findById(1L)).thenReturn(l);
         assertFalse(listingService.isOwner(1L, 99L));
+    }
+
+    @Test void createByServiceProviderSuccess() {
+        Listing l = validListing(); l.setPhotographerId(6L);
+        when(listingMapper.findById(any())).thenReturn(l);
+        listingService.create(l, serviceProvider());
+        verify(listingMapper).insert(any());
     }
 
     @Test void searchDelegatesWithPaginationAndSort() {
