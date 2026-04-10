@@ -8,12 +8,13 @@ Offline-first photography booking platform. Java 17 / Spring MVC / MyBatis / MyS
 docker compose up
 ```
 
-The stack is fully self-contained. No `.env` files, no host-installed JDK, no external APIs. All credentials and encryption keys are generated at runtime by the container entrypoint script (`docker/entrypoint.sh`) using `/dev/urandom` — nothing is persisted to the host filesystem.
+The stack is fully self-contained. No `.env` files, no host-installed JDK, no external APIs. All credentials and encryption keys are generated once by a short-lived init container (`init-secrets`) and shared with both the database and webapp via a tmpfs volume — nothing is persisted to the host filesystem and no environment variable carries an empty fallback.
 
-| Service | Container | Port | Purpose |
-|---------|-----------|------|---------|
-| **Web Application** | `booking-webapp` | **8080** | Spring Boot app, jQuery SPA |
-| **MySQL 8.0** | `booking-mysql` | **3306** | Persistent data store |
+| Service | Container | Lifecycle | Purpose |
+|---------|-----------|-----------|---------|
+| **Init Secrets** | `booking-init-secrets` | Runs once, then exits | Generates all credentials to `/run/secrets/booking/secrets.env` |
+| **MySQL 8.0** | `booking-mysql` | Long-running | Persistent data store (port **3306**) |
+| **Web Application** | `booking-webapp` | Long-running | Spring Boot app, jQuery SPA (port **8080**) |
 
 Open **http://localhost:8080** after startup.
 
@@ -21,26 +22,31 @@ Open **http://localhost:8080** after startup.
 
 On first `docker compose up`:
 
-1. The entrypoint script (`docker/entrypoint.sh`) generates all runtime secrets via `/dev/urandom`:
+1. **`init-secrets` container** (`docker/init-secrets.sh`) generates all runtime secrets via `/dev/urandom` and writes them to `/run/secrets/booking/secrets.env` on a shared tmpfs volume:
    - `MYSQL_ROOT_PASSWORD` — 24 random bytes, hex-encoded (48 chars)
+   - `MYSQL_USER` — `booking_app` (static)
    - `MYSQL_PASSWORD` — 24 random bytes, hex-encoded (48 chars)
    - `ENCRYPTION_KEY` — 32 random bytes, hex-encoded (64 chars, exceeds the 32-character minimum)
-2. MySQL container starts and runs init scripts in order:
-   - `01-schema.sql` — tables, indexes, foreign keys
-   - `02-seed.sql` — roles, users (with placeholder passwords), services
-   - `03-migration-v2.sql` — orders, listings, time slots, messaging, blacklist, points
-   - `04-seed-v2.sql` — sample listings, time slots, addresses
-   - `05-migration-v3.sql` — notification preferences, chat attachments, points rules
-   - `06-migration-v4.sql` — delivery modes, listing metadata
-   - `07-migration-v5.sql` — structured location hierarchy
-   - `08-migration-v6.sql` — search terms store, address default-uniqueness triggers
+   - If the secrets file already exists (restart without `down -v`), generation is skipped and existing credentials are reused.
+2. **`mysql` container** starts via `docker/mysql-entrypoint.sh`, which sources the shared secrets file into its environment and delegates to MySQL's official `docker-entrypoint.sh`. If the secrets file is missing the container refuses to start. Init scripts run in order:
+   - `01-schema.sql` through `08-migration-v6.sql`
 3. MySQL health check (`mysqladmin ping`) must pass before webapp starts.
-4. Webapp starts and `DataInitializer` replaces all `$PLACEHOLDER$` password hashes with real BCrypt hashes for `password123`.
-5. `EncryptionConfig` calls `FieldEncryptor.configure(ENCRYPTION_KEY)`. **The application will refuse to start if ENCRYPTION_KEY is shorter than 32 characters.**
-6. Scheduled tasks begin: auto-close unpaid orders (2 min), auto-lift expired blacklists (5 min), notification retry (3 min), clean idempotency tokens (15 min).
-7. Webapp health check (`/actuator/health`) confirms MySQL connectivity.
+4. **`webapp` container** starts via `docker/entrypoint.sh`, which sources the same shared secrets file. The entrypoint performs pre-flight validation before the JVM launches:
+   - Refuses to start if `ENCRYPTION_KEY` is shorter than 32 characters.
+   - Refuses to start if `MYSQL_PASSWORD` is empty.
+   - Exports `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD` from the shared credentials.
+5. Spring context initializes. `SecretsValidator` (`@PostConstruct`) performs a second validation layer inside the JVM:
+   - Rejects empty `SPRING_DATASOURCE_USERNAME` or `SPRING_DATASOURCE_PASSWORD`.
+   - Rejects `ENCRYPTION_KEY` shorter than 32 characters.
+   - The application context fails to initialize if any check fails.
+6. `EncryptionConfig` calls `FieldEncryptor.configure(ENCRYPTION_KEY)`, which derives the 256-bit AES key via PBKDF2. This is a third validation layer — `FieldEncryptor` independently rejects keys shorter than 32 characters.
+7. `DataInitializer` replaces all `$PLACEHOLDER$` password hashes with real BCrypt hashes for `password123`.
+8. Scheduled tasks begin: auto-close unpaid orders (2 min), auto-lift expired blacklists (5 min), notification retry (3 min), clean idempotency tokens (15 min).
+9. Webapp health check (`/actuator/health`) confirms MySQL connectivity.
 
-To reset all data: `docker compose down -v && docker compose up`
+**No environment variable in `docker-compose.yml` carries an empty-string fallback.** The `mysql` and `webapp` services contain no inline credentials — both read from the same `secrets.env` file generated by the init container.
+
+To reset all data (including regenerating secrets): `docker compose down -v && docker compose up`
 
 ## Default Test Users
 
@@ -318,6 +324,59 @@ Every order action accepts an `Idempotency-Key` header:
 
 ### Security Architecture
 
+#### Credential Provisioning
+
+All runtime secrets flow through a single, verified mechanism with no insecure fallbacks:
+
+```
+docker compose up
+      |
+      v
++-- init-secrets (alpine) ---------------------------------+
+|  docker/init-secrets.sh                                   |
+|  Generates secrets via /dev/urandom                       |
+|  Writes /run/secrets/booking/secrets.env to tmpfs volume  |
++-----------------------------------------------------------+
+      |                            |
+      v                            v
++-- mysql ----------------+  +-- webapp ------------------+
+|  docker/mysql-entrypoint |  |  docker/entrypoint.sh      |
+|  Sources secrets.env     |  |  Sources secrets.env       |
+|  Exports MYSQL_ROOT_*,   |  |  Pre-flight: key >= 32ch,  |
+|  MYSQL_USER, MYSQL_PASS  |  |  password non-empty        |
+|  Delegates to official   |  |  Exports SPRING_DATASOURCE |
+|  docker-entrypoint.sh    |  |  vars, launches JVM        |
++--------------------------+  +----------------------------+
+                                       |
+                              +--------v---------+
+                              | SecretsValidator  |
+                              | @PostConstruct    |
+                              | Rejects empty     |
+                              | username/password |
+                              | Rejects key < 32  |
+                              +--------+---------+
+                                       |
+                              +--------v---------+
+                              | EncryptionConfig  |
+                              | @PostConstruct    |
+                              | FieldEncryptor    |
+                              | .configure(key)   |
+                              | Rejects key < 32  |
+                              | Derives AES-256   |
+                              | via PBKDF2        |
+                              +------------------+
+```
+
+**Three-layer defense against missing or weak secrets:**
+
+| Layer | Component | What it checks | When it runs |
+|-------|-----------|---------------|--------------|
+| 1 (shell) | `docker/entrypoint.sh` | `ENCRYPTION_KEY` >= 32 chars, `MYSQL_PASSWORD` non-empty | Before JVM starts |
+| 2 (Spring) | `SecretsValidator` | `SPRING_DATASOURCE_USERNAME` non-blank, `SPRING_DATASOURCE_PASSWORD` non-blank, `ENCRYPTION_KEY` >= 32 chars | `@PostConstruct`, before any bean wiring |
+| 3 (crypto) | `FieldEncryptor.configure()` | key length < 32 throws `IllegalArgumentException` | `@PostConstruct` via `EncryptionConfig` |
+
+If any layer fails, the application does not start. There is no fallback to empty or default credentials at any level — `docker-compose.yml` contains no `:-` empty-string defaults for any secret, and `application.yml` uses bare `${VAR}` placeholders that will cause an immediate startup failure if the variable is unset.
+
 #### Authentication and Session Enforcement
 
 | Layer | Mechanism |
@@ -367,9 +426,9 @@ if (key == null || key.length() < 32) {
 }
 ```
 
-This validation runs during Spring's `@PostConstruct` phase (via `EncryptionConfig`). If `ENCRYPTION_KEY` is missing or too short, the application context fails to initialize and the webapp will not start. The Docker entrypoint generates a 64-character hex string (32 bytes from `/dev/urandom`), which satisfies this requirement.
+This validation runs during Spring's `@PostConstruct` phase (via `EncryptionConfig`), but it is the third of three independent checks. The webapp entrypoint script (`docker/entrypoint.sh`) performs the same length check before the JVM even starts, and `SecretsValidator` performs it again inside the Spring context. The init container (`docker/init-secrets.sh`) generates a 64-character hex string (32 bytes from `/dev/urandom`), which satisfies the 32-character minimum.
 
-> **WARNING: The `ENCRYPTION_KEY` must be at least 32 characters. The application will refuse to start with a shorter key. In production, use a cryptographically random value and manage it through your secrets infrastructure (e.g., Docker secrets, Vault, AWS Secrets Manager). Do not commit encryption keys to version control.**
+> **WARNING: The `ENCRYPTION_KEY` must be at least 32 characters. This is enforced at three independent layers (shell entrypoint, `SecretsValidator`, `FieldEncryptor`) — the application will refuse to start with a shorter key at each one. In production, use a cryptographically random value and manage it through your secrets infrastructure (e.g., Docker secrets, Vault, AWS Secrets Manager). Do not commit encryption keys to version control.**
 
 **Key derivation is deterministic:** configuring `FieldEncryptor` twice with the same input key produces the same derived AES key, so previously encrypted data remains decryptable after application restarts. Changing the `ENCRYPTION_KEY` will render all previously encrypted fields unreadable.
 
@@ -514,7 +573,9 @@ This validation runs during Spring's `@PostConstruct` phase (via `EncryptionConf
 +-- run_tests.sh                # Quality gate script
 +-- pom.xml                     # Maven build with enforcer + JaCoCo
 +-- docker/
-|   +-- entrypoint.sh           # Runtime secret generation via /dev/urandom
+|   +-- init-secrets.sh         # Generates all secrets to tmpfs volume (runs once)
+|   +-- mysql-entrypoint.sh     # Sources secrets, delegates to MySQL entrypoint
+|   +-- entrypoint.sh           # Sources secrets, validates, launches Spring Boot
 |   +-- mysql/
 |       +-- 01-schema.sql       # Core tables
 |       +-- 02-seed.sql         # Roles, users, services
@@ -526,7 +587,7 @@ This validation runs during Spring's `@PostConstruct` phase (via `EncryptionConf
 |       +-- 08-migration-v6.sql # Search terms store, address default triggers
 +-- src/main/
 |   +-- java/com/booking/
-|   |   +-- config/             # AppConfig, WebConfig, EncryptionConfig, DataInitializer
+|   |   +-- config/             # AppConfig, WebConfig, EncryptionConfig, SecretsValidator, DataInitializer
 |   |   +-- controller/         # REST controllers (15 files, 3 are 410 stubs)
 |   |   +-- domain/             # Entity classes + enums + DTOs (19 files)
 |   |   +-- filter/             # AuthFilter (session + enabled check + blacklist)

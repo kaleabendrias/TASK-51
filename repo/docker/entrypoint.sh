@@ -1,35 +1,40 @@
 #!/usr/bin/env bash
-# Docker-native runtime secret generation.
-# Generates secure credentials and encryption keys on first launch
-# via /dev/urandom — no .env files are created or persisted on the host.
-
+# ──────────────────────────────────────────────────────────────────
+# entrypoint.sh (webapp) — Loads shared secrets from the init
+# container's volume, then launches the Spring Boot application.
+# Refuses to start if the secrets file is missing or if the
+# ENCRYPTION_KEY does not meet the 32-character minimum.
+# ──────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# Generate a secure random string of given length (hex-encoded)
-gen_secret() {
-  head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'
-}
+SECRETS_FILE="/run/secrets/booking/secrets.env"
 
-# ── MySQL root password ──────────────────────────────────────────
-if [ -z "${MYSQL_ROOT_PASSWORD:-}" ]; then
-  export MYSQL_ROOT_PASSWORD
-  MYSQL_ROOT_PASSWORD="$(gen_secret 24)"
+if [ ! -f "$SECRETS_FILE" ]; then
+  echo "[webapp-entrypoint] FATAL: ${SECRETS_FILE} not found."
+  echo "[webapp-entrypoint] The init-secrets service must run first."
+  exit 1
 fi
 
-# ── Application database credentials ────────────────────────────
-if [ -z "${MYSQL_USER:-}" ]; then
-  export MYSQL_USER="booking_app"
+# Export every KEY=VALUE line into this shell's environment.
+set -a
+# shellcheck source=/dev/null
+. "$SECRETS_FILE"
+set +a
+
+# ── Pre-flight: validate secret strength before JVM startup ──────
+if [ "${#ENCRYPTION_KEY}" -lt 32 ]; then
+  echo "[webapp-entrypoint] FATAL: ENCRYPTION_KEY is ${#ENCRYPTION_KEY} chars (minimum 32)."
+  exit 1
 fi
+
 if [ -z "${MYSQL_PASSWORD:-}" ]; then
-  export MYSQL_PASSWORD
-  MYSQL_PASSWORD="$(gen_secret 24)"
+  echo "[webapp-entrypoint] FATAL: MYSQL_PASSWORD is empty."
+  exit 1
 fi
 
-# ── Encryption key (≥32 chars required for AES-256 via PBKDF2) ─
-if [ -z "${ENCRYPTION_KEY:-}" ]; then
-  export ENCRYPTION_KEY
-  ENCRYPTION_KEY="$(gen_secret 32)"  # 32 bytes = 64 hex chars
-fi
+# Map shared var names to Spring-expected env vars.
+export SPRING_DATASOURCE_USERNAME="${MYSQL_USER}"
+export SPRING_DATASOURCE_PASSWORD="${MYSQL_PASSWORD}"
 
-# ── Forward to the original command ─────────────────────────────
+echo "[webapp-entrypoint] Secrets loaded — starting application."
 exec "$@"
