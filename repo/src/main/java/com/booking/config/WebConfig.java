@@ -1,6 +1,7 @@
 package com.booking.config;
 
 import com.booking.filter.AuthFilter;
+import com.booking.filter.CsrfFilter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,15 @@ public class WebConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/static/**")
                 .addResourceLocations("classpath:/static/");
+    }
+
+    @Bean
+    public FilterRegistrationBean<CsrfFilter> csrfFilterRegistration(CsrfFilter csrfFilter) {
+        FilterRegistrationBean<CsrfFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(csrfFilter);
+        registration.addUrlPatterns("/api/*");
+        registration.setOrder(0);
+        return registration;
     }
 
     @Bean

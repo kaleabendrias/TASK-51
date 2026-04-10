@@ -21,28 +21,30 @@ class PointsServiceTest {
     @Mock com.booking.mapper.UserMapper userMapper;
     @InjectMocks PointsService pointsService;
 
-    @Test void awardPointsAddsToBalance() {
-        when(ledgerMapper.getBalance(4L)).thenReturn(50);
+    @Test void awardPointsUsesAtomicUpdate() {
+        when(ledgerMapper.getBalance(4L)).thenReturn(70);
         PointsLedgerEntry entry = pointsService.awardPoints(4L, 20, "TEST", "ORDER", 1L, "Bonus");
         assertEquals(20, entry.getPoints());
         assertEquals(70, entry.getBalanceAfter());
+        verify(ledgerMapper).adjustUserBalanceAtomic(4L, 20);
         verify(ledgerMapper).insert(any());
-        verify(ledgerMapper).updateUserBalance(4L, 70);
+        verify(ledgerMapper, never()).updateUserBalance(anyLong(), anyInt());
     }
 
-    @Test void deductPointsSubtracts() {
-        when(ledgerMapper.getBalance(4L)).thenReturn(50);
+    @Test void deductPointsUsesAtomicFloorUpdate() {
+        when(ledgerMapper.getBalance(4L)).thenReturn(20);
         PointsLedgerEntry entry = pointsService.deductPoints(4L, 30, "DEDUCT", "REF", 1L, "Refund");
         assertEquals(-30, entry.getPoints());
         assertEquals(20, entry.getBalanceAfter());
-        verify(ledgerMapper).updateUserBalance(4L, 20);
+        verify(ledgerMapper).adjustUserBalanceAtomicFloor(4L, -30);
+        verify(ledgerMapper, never()).updateUserBalance(anyLong(), anyInt());
     }
 
-    @Test void deductBelowZeroClampsToZero() {
-        when(ledgerMapper.getBalance(4L)).thenReturn(10);
+    @Test void deductBelowZeroClampsToZeroViaAtomic() {
+        when(ledgerMapper.getBalance(4L)).thenReturn(0);
         PointsLedgerEntry entry = pointsService.deductPoints(4L, 50, "DEDUCT", "REF", 1L, "Big refund");
         assertEquals(0, entry.getBalanceAfter());
-        verify(ledgerMapper).updateUserBalance(4L, 0);
+        verify(ledgerMapper).adjustUserBalanceAtomicFloor(4L, -50);
     }
 
     @Test void getBalanceDelegates() {

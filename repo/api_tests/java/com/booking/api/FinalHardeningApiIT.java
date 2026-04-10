@@ -25,6 +25,7 @@ class FinalHardeningApiIT extends BaseApiIT {
 
         // cust1's address is ID 1; create a fresh slot
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-12-01",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -34,10 +35,12 @@ class FinalHardeningApiIT extends BaseApiIT {
         // cust2 tries to use cust1's address (ID 1) for courier
         MockHttpSession admin = loginAs("admin");
         mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("enabled", true))));
         MockHttpSession cust2 = loginAs("cust2");
         mvc.perform(post("/api/orders").session(cust2)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "addr-idor-test")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId,
@@ -50,6 +53,7 @@ class FinalHardeningApiIT extends BaseApiIT {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-12-02",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -57,6 +61,7 @@ class FinalHardeningApiIT extends BaseApiIT {
         int slotId = ((Number) parseMap(slotR).get("id")).intValue();
 
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "addr-own-test")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId,
@@ -71,6 +76,7 @@ class FinalHardeningApiIT extends BaseApiIT {
         MockHttpSession admin = loginAs("admin");
         // PATCH update only email and fullName — should not touch password or phone
         mvc.perform(patch("/api/users/4").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("email", "patched@test.com", "fullName", "Patched Name"))))
             .andExpect(status().isOk());
@@ -120,6 +126,7 @@ class FinalHardeningApiIT extends BaseApiIT {
         MockHttpSession cust = loginAs("cust1");
         // Mute all non-critical
         mvc.perform(put("/api/notifications/preferences").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("orderUpdates", false, "holds", false,
                         "reminders", false, "approvals", false,
@@ -135,6 +142,7 @@ class FinalHardeningApiIT extends BaseApiIT {
         // Create an order (should trigger notifications, but user is muted)
         MockHttpSession photo = loginAs("photo1");
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-12-10",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -142,6 +150,7 @@ class FinalHardeningApiIT extends BaseApiIT {
         int slotId = ((Number) parseMap(slotR).get("id")).intValue();
 
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "mute-test")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -157,6 +166,7 @@ class FinalHardeningApiIT extends BaseApiIT {
 
         // Unmute for other tests
         mvc.perform(put("/api/notifications/preferences").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("orderUpdates", true, "holds", true,
                         "reminders", true, "approvals", true,
@@ -171,6 +181,7 @@ class FinalHardeningApiIT extends BaseApiIT {
         MockHttpSession photo = loginAs("photo1");
 
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-12-15",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -179,6 +190,7 @@ class FinalHardeningApiIT extends BaseApiIT {
 
         // First booking succeeds
         mvc.perform(post("/api/orders").session(cust1)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "race-final-1")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -187,10 +199,12 @@ class FinalHardeningApiIT extends BaseApiIT {
         // Second booking must fail
         MockHttpSession admin = loginAs("admin");
         mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("enabled", true))));
         MockHttpSession cust2 = loginAs("cust2");
         mvc.perform(post("/api/orders").session(cust2)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "race-final-2")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))

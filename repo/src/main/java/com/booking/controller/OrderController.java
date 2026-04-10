@@ -177,7 +177,7 @@ public class OrderController {
         try {
             Order order = orderService.getById(orderId);
             if (order == null) {
-                idempotencyService.recordResponse(idempotencyKey, action, null, 404, "Order not found");
+                idempotencyService.recordResponse(idempotencyKey, action, orderId, 404, "Order not found");
                 return ResponseEntity.notFound().build();
             }
             if (!orderService.canUserAccess(order, user)) {

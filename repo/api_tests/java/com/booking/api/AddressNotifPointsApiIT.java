@@ -31,6 +31,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
     void createAddress() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(post("/api/addresses").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("label", "Studio", "street", "789 Art Ln",
                         "city", "Chicago", "state", "IL", "postalCode", "60601",
@@ -44,6 +45,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
     void updateAddress() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(put("/api/addresses/1").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("label", "Updated Home", "street", "123 Main St Updated",
                         "city", "Springfield", "state", "IL", "postalCode", "62701",
@@ -56,6 +58,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
     void otherUserCannotUpdateMyAddress() throws Exception {
         MockHttpSession s = loginAs("cust2");
         mvc.perform(put("/api/addresses/1").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("label", "Hacked", "street", "x", "city", "x",
                         "state", "x", "postalCode", "x", "country", "US", "isDefault", false))))
@@ -65,7 +68,8 @@ class AddressNotifPointsApiIT extends BaseApiIT {
     @Test @Order(5)
     void deleteAddress() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(delete("/api/addresses/2").session(s))
+        mvc.perform(delete("/api/addresses/2").session(s)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isOk());
         mvc.perform(get("/api/addresses").session(s))
             .andExpect(jsonPath("$[?(@.id==2)]").doesNotExist());
@@ -86,6 +90,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
     void updatePreferencesComplianceCannotBeMuted() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(put("/api/notifications/preferences").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("orderUpdates", false, "holds", false,
                         "reminders", false, "approvals", false,
@@ -127,6 +132,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
         MockHttpSession s = loginAs("admin");
         // Empty reason -> rejected
         mvc.perform(post("/api/points/adjust").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("userId", 4, "points", 50, "reason", ""))))
             .andExpect(status().isBadRequest())
@@ -137,6 +143,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
     void adminManualAdjustmentSuccess() throws Exception {
         MockHttpSession s = loginAs("admin");
         mvc.perform(post("/api/points/adjust").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("userId", 4, "points", 50, "reason", "API test bonus"))))
             .andExpect(status().isOk())
@@ -149,6 +156,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
         MockHttpSession s = loginAs("admin");
         // Make adjustment
         mvc.perform(post("/api/points/adjust").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("userId", 4, "points", -10, "reason", "Audit test"))))
             .andExpect(status().isOk());
@@ -167,6 +175,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.length()").value(greaterThanOrEqualTo(2)));
         // Create
         mvc.perform(post("/api/points/rules").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("name", "TEST_RULE", "description", "Test",
                         "points", 5, "scope", "TEAM", "triggerEvent", "TEST_EVENT"))))
@@ -188,12 +197,14 @@ class AddressNotifPointsApiIT extends BaseApiIT {
         MockHttpSession admin = loginAs("admin");
         // Blacklist cust2
         mvc.perform(post("/api/blacklist").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("userId", 5, "reason", "API test block", "durationDays", 1))))
             .andExpect(status().isOk());
 
         // Re-enable for login to work (blacklist disables user)
         mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("enabled", true))))
             .andExpect(status().isOk());
@@ -208,6 +219,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
         MvcResult blList = mvc.perform(get("/api/blacklist").session(admin))
             .andExpect(status().isOk()).andReturn();
         mvc.perform(post("/api/blacklist/1/lift").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("reason", "Reinstated after test"))))
             .andExpect(status().isOk())

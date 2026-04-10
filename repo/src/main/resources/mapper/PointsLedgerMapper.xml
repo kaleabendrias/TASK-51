@@ -20,6 +20,14 @@
         UPDATE users SET points_balance = #{balance} WHERE id = #{userId}
     </update>
 
+    <update id="adjustUserBalanceAtomic">
+        UPDATE users SET points_balance = points_balance + #{delta} WHERE id = #{userId}
+    </update>
+
+    <update id="adjustUserBalanceAtomicFloor">
+        UPDATE users SET points_balance = GREATEST(0, points_balance + #{delta}) WHERE id = #{userId}
+    </update>
+
     <select id="getLeaderboard" resultType="java.util.Map">
         SELECT u.id AS userId, u.full_name AS fullName, u.username,
                COALESCE(u.points_balance, 0) AS points,

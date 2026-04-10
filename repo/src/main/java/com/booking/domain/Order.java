@@ -21,6 +21,8 @@ public class Order {
     private Long addressId;
     private String notes;
     private String deliveryMode;
+    private LocalDateTime deliveryEta;
+    private LocalDateTime pickupEta;
     private LocalDateTime paymentDeadline;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -65,6 +67,10 @@ public class Order {
     public void setNotes(String notes) { this.notes = notes; }
     public String getDeliveryMode() { return deliveryMode; }
     public void setDeliveryMode(String deliveryMode) { this.deliveryMode = deliveryMode; }
+    public LocalDateTime getDeliveryEta() { return deliveryEta; }
+    public void setDeliveryEta(LocalDateTime deliveryEta) { this.deliveryEta = deliveryEta; }
+    public LocalDateTime getPickupEta() { return pickupEta; }
+    public void setPickupEta(LocalDateTime pickupEta) { this.pickupEta = pickupEta; }
     public LocalDateTime getPaymentDeadline() { return paymentDeadline; }
     public void setPaymentDeadline(LocalDateTime paymentDeadline) { this.paymentDeadline = paymentDeadline; }
     public LocalDateTime getCreatedAt() { return createdAt; }

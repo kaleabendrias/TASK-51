@@ -18,6 +18,7 @@ class ChatAttachmentApiIT extends BaseApiIT {
     private int createOrderForChat() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2027-05-" + (10 + (int)(Math.random()*20)),
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -25,6 +26,7 @@ class ChatAttachmentApiIT extends BaseApiIT {
         int slotId = ((Number) parseMap(slotR).get("id")).intValue();
         MockHttpSession cust = loginAs("cust1");
         MvcResult r = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "chat-order-" + System.nanoTime())
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -36,6 +38,7 @@ class ChatAttachmentApiIT extends BaseApiIT {
         int orderId = createOrderForChat();
         MockHttpSession cust = loginAs("cust1");
         MvcResult r = mvc.perform(post("/api/messages/send").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("recipientId", 2, "content", "Hi", "orderId", orderId))))
             .andExpect(status().isOk()).andReturn();
@@ -46,6 +49,7 @@ class ChatAttachmentApiIT extends BaseApiIT {
         int orderId = createOrderForChat();
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/messages/send").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("recipientId", 2, "content", "Hello", "orderId", orderId))))
             .andExpect(status().isOk())
@@ -55,6 +59,7 @@ class ChatAttachmentApiIT extends BaseApiIT {
     @Test void sendEmptyMessageFails() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/messages/send").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("recipientId", 2, "content", ""))))
             .andExpect(status().isBadRequest());
@@ -66,7 +71,8 @@ class ChatAttachmentApiIT extends BaseApiIT {
         MockMultipartFile file = new MockMultipartFile("file", "photo.jpg",
                 "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
         mvc.perform(multipart("/api/messages/conversations/" + convId + "/image")
-                .file(file).session(cust))
+                .file(file).session(cust)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.attachment.contentType").value("image/jpeg"));
     }
@@ -77,7 +83,8 @@ class ChatAttachmentApiIT extends BaseApiIT {
         MockMultipartFile file = new MockMultipartFile("file", "img.png",
                 "image/png", new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47});
         mvc.perform(multipart("/api/messages/conversations/" + convId + "/image")
-                .file(file).session(cust))
+                .file(file).session(cust)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.attachment.contentType").value("image/png"));
     }
@@ -88,7 +95,8 @@ class ChatAttachmentApiIT extends BaseApiIT {
         MockMultipartFile file = new MockMultipartFile("file", "doc.pdf",
                 "application/pdf", "fake pdf".getBytes());
         mvc.perform(multipart("/api/messages/conversations/" + convId + "/image")
-                .file(file).session(cust))
+                .file(file).session(cust)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error", containsString("JPEG and PNG")));
     }
@@ -100,7 +108,8 @@ class ChatAttachmentApiIT extends BaseApiIT {
         MockMultipartFile file = new MockMultipartFile("file", "big.jpg",
                 "image/jpeg", bigFile);
         mvc.perform(multipart("/api/messages/conversations/" + convId + "/image")
-                .file(file).session(cust))
+                .file(file).session(cust)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error", containsString("5 MB")));
     }
@@ -111,7 +120,8 @@ class ChatAttachmentApiIT extends BaseApiIT {
         MockMultipartFile file = new MockMultipartFile("file", "x.jpg",
                 "image/jpeg", new byte[]{1, 2, 3});
         mvc.perform(multipart("/api/messages/conversations/" + convId + "/image")
-                .file(file).session(cust2))
+                .file(file).session(cust2)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isForbidden());
     }
 
@@ -121,7 +131,8 @@ class ChatAttachmentApiIT extends BaseApiIT {
         MockMultipartFile file = new MockMultipartFile("file", "test.jpg",
                 "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8});
         mvc.perform(multipart("/api/messages/conversations/" + convId + "/image")
-                .file(file).session(cust))
+                .file(file).session(cust)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isOk());
         mvc.perform(get("/api/messages/conversations/" + convId).session(cust))
             .andExpect(status().isOk())
@@ -132,6 +143,7 @@ class ChatAttachmentApiIT extends BaseApiIT {
         int orderId = createOrderForChat();
         MockHttpSession cust = loginAs("cust1");
         MvcResult r = mvc.perform(post("/api/messages/send").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("recipientId", 2, "content", "Unread test", "orderId", orderId))))
             .andExpect(status().isOk()).andReturn();
@@ -150,7 +162,8 @@ class ChatAttachmentApiIT extends BaseApiIT {
         MockHttpSession cust = loginAs("cust1");
         MockMultipartFile file = new MockMultipartFile("file", "x.jpg", "image/jpeg", new byte[]{1});
         mvc.perform(multipart("/api/messages/conversations/99999/image")
-                .file(file).session(cust))
+                .file(file).session(cust)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isNotFound());
     }
 }

@@ -34,10 +34,10 @@ class PointsScopeTest {
 
     @Test void individualScopeAwardsSingleUser() {
         when(ruleMapper.findByTrigger("EVT")).thenReturn(rule("INDIVIDUAL", 10));
-        when(ledgerMapper.getBalance(1L)).thenReturn(0);
+        when(ledgerMapper.getBalance(1L)).thenReturn(10);
         pointsService.awardByTrigger("EVT", 1L, "REF", 1L, "ctx");
         verify(ledgerMapper, times(1)).insert(any());
-        verify(ledgerMapper).updateUserBalance(1L, 10);
+        verify(ledgerMapper).adjustUserBalanceAtomic(1L, 10);
     }
 
     @Test void departmentScopeAwardsAllInDept() {

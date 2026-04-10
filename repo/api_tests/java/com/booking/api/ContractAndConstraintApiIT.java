@@ -26,6 +26,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
 
         // Create an order between cust1 and photo1
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2027-01-01",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -33,6 +34,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
         int slotId = ((Number) parseMap(slotR).get("id")).intValue();
 
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust1)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "chat-scope-1")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -42,9 +44,11 @@ class ContractAndConstraintApiIT extends BaseApiIT {
         // cust2 tries to message on this order — should be denied
         MockHttpSession admin = loginAs("admin");
         mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON).content(json(Map.of("enabled", true))));
         MockHttpSession cust2 = loginAs("cust2");
         mvc.perform(post("/api/messages/send").session(cust2)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("recipientId", 2, "content", "Hi", "orderId", orderId))))
             .andExpect(status().isForbidden())
@@ -56,6 +60,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
         MockHttpSession photo = loginAs("photo1");
 
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2027-01-02",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -63,6 +68,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
         int slotId = ((Number) parseMap(slotR).get("id")).intValue();
 
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust1)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "chat-scope-2")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -71,6 +77,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
 
         // cust1 tries to message cust2 (not a participant of this order)
         mvc.perform(post("/api/messages/send").session(cust1)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("recipientId", 5, "content", "Hi", "orderId", orderId))))
             .andExpect(status().isForbidden())
@@ -86,6 +93,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
 
         // Slot on listing 1 (photo1's)
         MvcResult s1R = mvc.perform(post("/api/timeslots").session(photo1)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2027-02-01",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -94,6 +102,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
 
         // Slot on listing 2 (photo2's — different listing)
         MvcResult s2R = mvc.perform(post("/api/timeslots").session(photo2)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 2, "slotDate", "2027-02-02",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -102,6 +111,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
 
         // Create order on listing 1
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "resched-listing-1")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slot1))))
@@ -110,6 +120,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
 
         // Reschedule to slot on listing 2 — should be denied
         mvc.perform(post("/api/orders/" + orderId + "/reschedule").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "resched-listing-deny")
                 .content(json(Map.of("newTimeSlotId", slot2))))

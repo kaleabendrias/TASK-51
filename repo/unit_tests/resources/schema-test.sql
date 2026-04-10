@@ -20,45 +20,6 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (role_id) REFERENCES roles(id)
 );
-CREATE TABLE IF NOT EXISTS services (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    description CLOB,
-    price       DECIMAL(10,2) NOT NULL,
-    duration_minutes INT       NOT NULL DEFAULT 60,
-    active      BOOLEAN       DEFAULT TRUE,
-    created_at  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS bookings (
-    id                BIGINT AUTO_INCREMENT PRIMARY KEY,
-    customer_id       BIGINT       NOT NULL,
-    photographer_id   BIGINT,
-    service_id        BIGINT       NOT NULL,
-    booking_date      DATE         NOT NULL,
-    start_time        TIME         NOT NULL,
-    end_time          TIME         NOT NULL,
-    status            VARCHAR(30)  NOT NULL DEFAULT 'PENDING',
-    location          VARCHAR(500),
-    notes             CLOB,
-    total_price       DECIMAL(10,2),
-    created_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    updated_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (customer_id) REFERENCES users(id),
-    FOREIGN KEY (photographer_id) REFERENCES users(id),
-    FOREIGN KEY (service_id) REFERENCES services(id)
-);
-CREATE TABLE IF NOT EXISTS attachments (
-    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
-    booking_id   BIGINT       NOT NULL,
-    file_name    VARCHAR(255) NOT NULL,
-    original_name VARCHAR(255) NOT NULL,
-    content_type VARCHAR(100),
-    file_size    BIGINT,
-    uploaded_by  BIGINT       NOT NULL,
-    created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
-    FOREIGN KEY (uploaded_by) REFERENCES users(id)
-);
 CREATE TABLE IF NOT EXISTS listings (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY,
     photographer_id   BIGINT        NOT NULL,
@@ -110,6 +71,8 @@ CREATE TABLE IF NOT EXISTS orders (
     address_id          BIGINT,
     notes               CLOB,
     delivery_mode       VARCHAR(20)   NOT NULL DEFAULT 'ONSITE',
+    delivery_eta        TIMESTAMP     NULL,
+    pickup_eta          TIMESTAMP     NULL,
     payment_deadline    TIMESTAMP     NULL,
     created_at          TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,

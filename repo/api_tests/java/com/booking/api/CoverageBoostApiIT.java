@@ -28,6 +28,7 @@ class CoverageBoostApiIT extends BaseApiIT {
         MockHttpSession admin = loginAs("admin");
         MockHttpSession photo = loginAs("photo1");
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 3, "slotDate", "2026-09-10",
                         "startTime", "09:00", "endTime", "11:00", "capacity", 1))))
@@ -35,24 +36,31 @@ class CoverageBoostApiIT extends BaseApiIT {
         int freshSlot = ((Number) parseMap(slotR).get("id")).intValue();
 
         MvcResult r = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "cov-refund-create")
                 .content(json(Map.of("listingId", 3, "timeSlotId", freshSlot))))
             .andExpect(status().isOk()).andReturn();
         int id = ((Number) parseMap(r).get("id")).intValue();
         mvc.perform(post("/api/orders/" + id + "/confirm").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "cov-refund-c")).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/pay").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "cov-refund-p")
                 .content(json(Map.of("amount", 300.0, "paymentReference", "R1")))).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/check-in").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "cov-refund-ci")).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/check-out").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "cov-refund-co")).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/complete").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "cov-refund-done")).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/refund").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "cov-refund-refund")
                 .content(json(Map.of("amount", 300.0, "reason", "Quality issue"))))
@@ -64,24 +72,28 @@ class CoverageBoostApiIT extends BaseApiIT {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
         MvcResult slot1R = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-08-01",
                         "startTime", "14:00", "endTime", "15:00", "capacity", 1))))
             .andExpect(status().isOk()).andReturn();
         int slotA = ((Number) parseMap(slot1R).get("id")).intValue();
         MvcResult slot2R = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-08-02",
                         "startTime", "14:00", "endTime", "15:00", "capacity", 1))))
             .andExpect(status().isOk()).andReturn();
         int slotB = ((Number) parseMap(slot2R).get("id")).intValue();
         MvcResult r = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "cov-resched-create")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotA))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(r).get("id")).intValue();
         mvc.perform(post("/api/orders/" + orderId + "/reschedule").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "cov-resched-do")
                 .content(json(Map.of("newTimeSlotId", slotB))))
@@ -92,12 +104,14 @@ class CoverageBoostApiIT extends BaseApiIT {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2027-07-01",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
             .andExpect(status().isOk()).andReturn();
         int slotId = ((Number) parseMap(slotR).get("id")).intValue();
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "chat-dl-order")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -105,6 +119,7 @@ class CoverageBoostApiIT extends BaseApiIT {
         int orderId = ((Number) parseMap(orderR).get("id")).intValue();
 
         MvcResult sendR = mvc.perform(post("/api/messages/send").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("recipientId", 2, "content", "hi for download", "orderId", orderId))))
             .andExpect(status().isOk()).andReturn();
@@ -113,7 +128,8 @@ class CoverageBoostApiIT extends BaseApiIT {
         MockMultipartFile img = new MockMultipartFile("file", "dl.jpg",
                 "image/jpeg", new byte[]{(byte)0xFF, (byte)0xD8, (byte)0xFF});
         MvcResult imgR = mvc.perform(multipart("/api/messages/conversations/" + convId + "/image")
-                .file(img).session(cust))
+                .file(img).session(cust)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isOk()).andReturn();
         Map<String, Object> att = (Map<String, Object>) parseMap(imgR).get("attachment");
         int attId = ((Number) att.get("id")).intValue();
@@ -143,7 +159,8 @@ class CoverageBoostApiIT extends BaseApiIT {
 
     @Test void deleteAddressNotOwned() throws Exception {
         MockHttpSession s = loginAs("cust2");
-        mvc.perform(delete("/api/addresses/1").session(s))
+        mvc.perform(delete("/api/addresses/1").session(s)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isForbidden());
     }
 
@@ -159,6 +176,7 @@ class CoverageBoostApiIT extends BaseApiIT {
         mvc.perform(get("/api/notifications/preferences").session(s))
             .andExpect(status().isOk());
         mvc.perform(put("/api/notifications/preferences").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("orderUpdates", true, "holds", false,
                         "reminders", true, "approvals", true,
@@ -176,6 +194,7 @@ class CoverageBoostApiIT extends BaseApiIT {
     @Test void createListingByCustomerDenied() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(post("/api/listings").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("title", "X", "price", 50, "durationMinutes", 30))))
             .andExpect(status().isForbidden());
@@ -184,6 +203,7 @@ class CoverageBoostApiIT extends BaseApiIT {
     @Test void updateListingByNonOwnerDenied() throws Exception {
         MockHttpSession s = loginAs("photo2");
         mvc.perform(put("/api/listings/1").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("title", "Hacked", "price", 1, "durationMinutes", 1,
                         "maxConcurrent", 1, "active", true))))
@@ -215,6 +235,7 @@ class CoverageBoostApiIT extends BaseApiIT {
         MockHttpSession admin = loginAs("admin");
         MockHttpSession cust2 = loginAs("cust2");
         mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("enabled", false))))
             .andExpect(status().isOk());
@@ -222,6 +243,7 @@ class CoverageBoostApiIT extends BaseApiIT {
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.error", containsString("disabled")));
         mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("enabled", true))))
             .andExpect(status().isOk());

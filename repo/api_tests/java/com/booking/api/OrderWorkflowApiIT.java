@@ -21,6 +21,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
     void createOrderHappyPath() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-test-create-1")
                 .content(json(Map.of("listingId", 1, "timeSlotId", 1, "addressId", 1, "notes", "API test"))))
@@ -36,12 +37,14 @@ class OrderWorkflowApiIT extends BaseApiIT {
         MockHttpSession cust = loginAs("cust1");
         // First call
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-test-idem-dup")
                 .content(json(Map.of("listingId", 1, "timeSlotId", 2))))
             .andExpect(status().isOk());
         // Retry with same key
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-test-idem-dup")
                 .content(json(Map.of("listingId", 1, "timeSlotId", 2))))
@@ -53,6 +56,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
         MockHttpSession cust = loginAs("cust1");
         // slot 1 capacity=1, should be taken from test 1
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-test-oversell")
                 .content(json(Map.of("listingId", 1, "timeSlotId", 1))))
@@ -67,6 +71,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
 
         // Create
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-lifecycle-create")
                 .content(json(Map.of("listingId", 1, "timeSlotId", 5))))
@@ -75,12 +80,14 @@ class OrderWorkflowApiIT extends BaseApiIT {
 
         // Confirm
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "api-lc-confirm"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CONFIRMED"));
 
         // Pay
         mvc.perform(post("/api/orders/" + orderId + "/pay").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-lc-pay")
                 .content(json(Map.of("amount", 150.0, "paymentReference", "REF-API"))))
@@ -89,18 +96,21 @@ class OrderWorkflowApiIT extends BaseApiIT {
 
         // Check-in
         mvc.perform(post("/api/orders/" + orderId + "/check-in").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "api-lc-checkin"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CHECKED_IN"));
 
         // Check-out
         mvc.perform(post("/api/orders/" + orderId + "/check-out").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "api-lc-checkout"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CHECKED_OUT"));
 
         // Complete
         mvc.perform(post("/api/orders/" + orderId + "/complete").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "api-lc-complete"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("COMPLETED"));
@@ -118,6 +128,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
 
         // Create a fresh slot for listing 3
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 3, "slotDate", "2026-09-01",
                         "startTime", "09:00", "endTime", "11:00", "capacity", 1))))
@@ -125,6 +136,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
         int freshSlot = ((Number) parseMap(slotR).get("id")).intValue();
 
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-cancel-create")
                 .content(json(Map.of("listingId", 3, "timeSlotId", freshSlot))))
@@ -133,9 +145,11 @@ class OrderWorkflowApiIT extends BaseApiIT {
 
         // Confirm + Pay
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "api-cancel-confirm"))
             .andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + orderId + "/pay").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-cancel-pay")
                 .content(json(Map.of("amount", 300.0, "paymentReference", "REF-C"))))
@@ -143,6 +157,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
 
         // Cancel from PAID state -> auto-refund
         mvc.perform(post("/api/orders/" + orderId + "/cancel").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-cancel-do")
                 .content(json(Map.of("reason", "Changed plans"))))
@@ -156,6 +171,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
         MockHttpSession cust = loginAs("cust1");
         // Create order on slot 3 (listing 2, capacity 2)
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-invalid-create")
                 .content(json(Map.of("listingId", 2, "timeSlotId", 3))))
@@ -165,6 +181,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
         // Try to skip to COMPLETED from CREATED -> 400
         MockHttpSession photo = loginAs("photo2");
         mvc.perform(post("/api/orders/" + orderId + "/complete").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "api-invalid-complete"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error", containsString("Invalid transition")));
@@ -174,6 +191,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
     void customerCannotConfirm() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-rbac-confirm-create")
                 .content(json(Map.of("listingId", 2, "timeSlotId", 3))))
@@ -181,6 +199,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
         int orderId = ((Number) parseMap(cr).get("id")).intValue();
 
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "api-rbac-confirm-do"))
             .andExpect(status().isForbidden());
     }
@@ -192,6 +211,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
 
         // Create a fresh slot for listing 3 (owned by photo1)
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo1)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 3, "slotDate", "2026-09-05",
                         "startTime", "10:00", "endTime", "12:00", "capacity", 1))))
@@ -199,6 +219,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
         int freshSlot = ((Number) parseMap(slotR).get("id")).intValue();
 
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "api-wrong-photo-create")
                 .content(json(Map.of("listingId", 3, "timeSlotId", freshSlot))))
@@ -208,6 +229,7 @@ class OrderWorkflowApiIT extends BaseApiIT {
         // photo2 tries to confirm photo1's order
         MockHttpSession photo2 = loginAs("photo2");
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo2)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "api-wrong-photo-confirm"))
             .andExpect(status().isForbidden());
     }

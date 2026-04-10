@@ -23,7 +23,8 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/bookings").session(s)).andExpect(status().isNotFound());
         mvc.perform(get("/api/bookings/1").session(s)).andExpect(status().isNotFound());
-        mvc.perform(post("/api/bookings").session(s).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/bookings").session(s)
+                .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("serviceId", 1)))).andExpect(status().isNotFound());
     }
 
@@ -76,17 +77,20 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
 
     @Test @Order(44) void enableDisableUser() throws Exception {
         MockHttpSession s = loginAs("admin");
-        mvc.perform(patch("/api/users/5/enabled").session(s).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(patch("/api/users/5/enabled").session(s)
+                .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("enabled", false))))
             .andExpect(status().isOk());
-        mvc.perform(patch("/api/users/5/enabled").session(s).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(patch("/api/users/5/enabled").session(s)
+                .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("enabled", true))))
             .andExpect(status().isOk());
     }
 
     @Test @Order(45) void updateUserNonAdminDenied() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(put("/api/users/4").session(s).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/users/4").session(s)
+                .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("email", "x@t.com", "fullName", "X", "roleId", 1, "enabled", true))))
             .andExpect(status().isForbidden());
     }
@@ -99,7 +103,8 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
 
     @Test @Order(51) void createListing() throws Exception {
         MockHttpSession s = loginAs("photo1");
-        mvc.perform(post("/api/listings").session(s).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/listings").session(s)
+                .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("title", "API Test Listing", "price", 200.0,
                         "durationMinutes", 60, "category", "PORTRAIT"))))
             .andExpect(status().isOk())
@@ -108,7 +113,8 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
 
     @Test @Order(52) void updateListing() throws Exception {
         MockHttpSession s = loginAs("photo1");
-        mvc.perform(put("/api/listings/1").session(s).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/listings/1").session(s)
+                .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("title", "Updated Studio Portrait", "price", 160.0,
                         "durationMinutes", 60, "category", "PORTRAIT", "active", true,
                         "maxConcurrent", 1, "location", "Downtown"))))
@@ -117,7 +123,8 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
 
     @Test @Order(53) void createTimeSlot() throws Exception {
         MockHttpSession s = loginAs("photo1");
-        mvc.perform(post("/api/timeslots").session(s).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/timeslots").session(s)
+                .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-07-01",
                         "startTime", "10:00", "endTime", "11:00", "capacity", 2))))
             .andExpect(status().isOk())

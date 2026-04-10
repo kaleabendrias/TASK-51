@@ -1,4 +1,4 @@
-INSERT INTO roles (id, name, description) VALUES (1, 'CUSTOMER', 'Customer'), (2, 'PHOTOGRAPHER', 'Photographer'), (3, 'ADMINISTRATOR', 'Admin');
+INSERT INTO roles (id, name, description) VALUES (1, 'CUSTOMER', 'Customer'), (2, 'PHOTOGRAPHER', 'Photographer'), (3, 'ADMINISTRATOR', 'Admin'), (4, 'SERVICE_PROVIDER', 'General service provider');
 -- password is 'password123' BCrypt: $2a$10$dXJ3SW6G7P50lGmMQgel2u... (will be replaced by DataInitializer)
 INSERT INTO users (id, username, email, password_hash, full_name, phone, role_id, enabled, points_balance) VALUES
 (1, 'admin', 'admin@test.com', '$PLACEHOLDER$', 'Admin User', '+1-555-0001', 3, TRUE, 0),
@@ -6,9 +6,6 @@ INSERT INTO users (id, username, email, password_hash, full_name, phone, role_id
 (3, 'photo2', 'photo2@test.com', '$PLACEHOLDER$', 'Photographer Two', '+1-555-0003', 2, TRUE, 0),
 (4, 'cust1', 'cust1@test.com', '$PLACEHOLDER$', 'Customer One', '+1-555-0004', 1, TRUE, 0),
 (5, 'cust2', 'cust2@test.com', '$PLACEHOLDER$', 'Customer Two', '+1-555-0005', 1, TRUE, 0);
-INSERT INTO services (id, name, description, price, duration_minutes, active) VALUES
-(1, 'Portrait', 'Portrait session', 100.00, 60, TRUE),
-(2, 'Wedding', 'Wedding coverage', 2000.00, 480, TRUE);
 INSERT INTO listings (id, photographer_id, title, description, category, price, duration_minutes, location, max_concurrent, active) VALUES
 (1, 2, 'Studio Portrait', 'Professional portrait', 'PORTRAIT', 150.00, 60, 'Downtown', 1, TRUE),
 (2, 3, 'Outdoor Family', 'Family portraits', 'FAMILY', 250.00, 90, 'City Park', 2, TRUE),
@@ -22,8 +19,6 @@ INSERT INTO time_slots (id, listing_id, slot_date, start_time, end_time, capacit
 INSERT INTO addresses (id, user_id, label, street, city, state, postal_code, country, is_default) VALUES
 (1, 4, 'Home', '123 Main St', 'Springfield', 'IL', '62701', 'US', TRUE),
 (2, 4, 'Work', '456 Office Rd', 'Springfield', 'IL', '62702', 'US', FALSE);
-INSERT INTO bookings (id, customer_id, photographer_id, service_id, booking_date, start_time, end_time, status, location, notes, total_price) VALUES
-(1, 4, 2, 1, '2026-08-01', '09:00:00', '10:00:00', 'PENDING', 'Downtown', 'Test booking', 100.00);
 INSERT INTO notification_preferences (user_id) VALUES (1), (2), (3), (4), (5);
 INSERT INTO points_rules (id, name, description, points, scope, trigger_event, active) VALUES
 (1, 'ORDER_PAYMENT', 'Points for payment', 10, 'INDIVIDUAL', 'ORDER_PAID', TRUE),

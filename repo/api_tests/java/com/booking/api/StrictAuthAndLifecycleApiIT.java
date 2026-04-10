@@ -31,6 +31,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
     @Test @Order(1) void customerAdHocMessageDenied() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/messages/send").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("recipientId", 2, "content", "Hi no order"))))
             .andExpect(status().isBadRequest())
@@ -71,6 +72,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
         // Create order to trigger notifications
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2027-03-01",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -79,12 +81,14 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
         // Unmute cust1 first
         mvc.perform(put("/api/notifications/preferences").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("orderUpdates", true, "holds", true, "reminders", true,
                         "approvals", true, "compliance", true, "muteNonCritical", false))))
             .andExpect(status().isOk());
 
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "export-lifecycle-1")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -107,6 +111,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
         MockHttpSession photo = loginAs("photo1");
 
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2027-03-05",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -114,6 +119,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
         int slotId = ((Number) parseMap(slotR).get("id")).intValue();
 
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "hold-trigger-1")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -127,6 +133,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
         // Confirm triggers HOLD notification
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "hold-trigger-confirm"))
             .andExpect(status().isOk());
 
@@ -145,6 +152,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
         // Create a capacity-1 slot
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2027-04-01",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -163,6 +171,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
                 startGate.await(); // Wait for all threads to be ready
                 MockHttpSession s = loginAs("cust1");
                 MvcResult r = mvc.perform(post("/api/orders").session(s)
+                        .header("Origin", TEST_ORIGIN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Idempotency-Key", "race-parallel-" + idx)
                         .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -201,6 +210,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
         // Admin disables cust2 account
         mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("enabled", false))))
             .andExpect(status().isOk());
@@ -212,6 +222,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
         // Re-enable for cleanup
         mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("enabled", true))))
             .andExpect(status().isOk());
@@ -224,6 +235,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
         // Create two non-default addresses via API
         MvcResult r1 = mvc.perform(post("/api/addresses").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("label", "Race A", "street", "1 A St",
                         "city", "Chicago", "state", "IL", "postalCode", "60601",
@@ -232,6 +244,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
         int addrA = ((Number) parseMap(r1).get("id")).intValue();
 
         MvcResult r2 = mvc.perform(post("/api/addresses").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("label", "Race B", "street", "2 B St",
                         "city", "Chicago", "state", "IL", "postalCode", "60601",
@@ -250,6 +263,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
                 startGate.await();
                 MockHttpSession s = loginAs("cust1");
                 MvcResult r = mvc.perform(put("/api/addresses/" + addrId).session(s)
+                        .header("Origin", TEST_ORIGIN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("label", "Default", "street", "1 St",
                                 "city", "Chicago", "state", "IL", "postalCode", "60601",

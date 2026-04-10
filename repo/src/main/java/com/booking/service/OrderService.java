@@ -55,7 +55,7 @@ public class OrderService {
     public List<Order> getForUser(User user) {
         return switch (user.getRoleName()) {
             case "CUSTOMER" -> orderMapper.findByCustomerId(user.getId());
-            case "PHOTOGRAPHER" -> orderMapper.findByPhotographerId(user.getId());
+            case "PHOTOGRAPHER", "SERVICE_PROVIDER" -> orderMapper.findByPhotographerId(user.getId());
             default -> orderMapper.findAll();
         };
     }
@@ -124,6 +124,12 @@ public class OrderService {
         order.setAddressId(addressId);
         order.setNotes(notes);
         order.setDeliveryMode(mode);
+        // Set explicit ETA fields based on delivery mode
+        if ("COURIER".equals(mode)) {
+            order.setDeliveryEta(slot.getSlotDate().atTime(slot.getEndTime()).plusHours(2));
+        } else if ("PICKUP".equals(mode)) {
+            order.setPickupEta(slot.getSlotDate().atTime(slot.getEndTime()).plusMinutes(30));
+        }
         order.setPaymentDeadline(LocalDateTime.now().plusMinutes(PAYMENT_DEADLINE_MINUTES));
 
         try {
@@ -146,7 +152,7 @@ public class OrderService {
     @Transactional
     public Order confirm(Long orderId, User actor) {
         Order order = requireOrder(orderId);
-        enforceAccess(order, actor, "PHOTOGRAPHER", "ADMINISTRATOR");
+        enforceAccess(order, actor, "PHOTOGRAPHER", "SERVICE_PROVIDER", "ADMINISTRATOR");
         transition(order, OrderStatus.CONFIRMED, actor.getId(), "Order confirmed by photographer");
         notificationService.queueOrderNotification(order, "ORDER_CONFIRMED",
                 "Order " + order.getOrderNumber() + " has been confirmed");
@@ -178,7 +184,7 @@ public class OrderService {
     @Transactional
     public Order checkIn(Long orderId, User actor) {
         Order order = requireOrder(orderId);
-        enforceAccess(order, actor, "PHOTOGRAPHER", "ADMINISTRATOR");
+        enforceAccess(order, actor, "PHOTOGRAPHER", "SERVICE_PROVIDER", "ADMINISTRATOR");
         transition(order, OrderStatus.CHECKED_IN, actor.getId(), "Customer checked in");
         return orderMapper.findById(orderId);
     }
@@ -186,7 +192,7 @@ public class OrderService {
     @Transactional
     public Order checkOut(Long orderId, User actor) {
         Order order = requireOrder(orderId);
-        enforceAccess(order, actor, "PHOTOGRAPHER", "ADMINISTRATOR");
+        enforceAccess(order, actor, "PHOTOGRAPHER", "SERVICE_PROVIDER", "ADMINISTRATOR");
         transition(order, OrderStatus.CHECKED_OUT, actor.getId(), "Customer checked out");
         return orderMapper.findById(orderId);
     }
@@ -194,7 +200,7 @@ public class OrderService {
     @Transactional
     public Order complete(Long orderId, User actor) {
         Order order = requireOrder(orderId);
-        enforceAccess(order, actor, "PHOTOGRAPHER", "ADMINISTRATOR");
+        enforceAccess(order, actor, "PHOTOGRAPHER", "SERVICE_PROVIDER", "ADMINISTRATOR");
         transition(order, OrderStatus.COMPLETED, actor.getId(), "Order completed");
 
         // Award completion bonus — driven by configurable rules
@@ -208,7 +214,7 @@ public class OrderService {
     @Transactional
     public Order cancel(Long orderId, String reason, User actor) {
         Order order = requireOrder(orderId);
-        enforceAccess(order, actor, "CUSTOMER", "PHOTOGRAPHER", "ADMINISTRATOR");
+        enforceAccess(order, actor, "CUSTOMER", "PHOTOGRAPHER", "SERVICE_PROVIDER", "ADMINISTRATOR");
 
         OrderStatus current = OrderStatus.valueOf(order.getStatus());
         if (!current.canTransitionTo(OrderStatus.CANCELLED)) {
@@ -364,7 +370,8 @@ public class OrderService {
         for (String role : allowedRoles) {
             if (role.equals(actor.getRoleName())) {
                 if ("CUSTOMER".equals(role) && order.getCustomerId().equals(actor.getId())) return;
-                if ("PHOTOGRAPHER".equals(role) && order.getPhotographerId().equals(actor.getId())) return;
+                if (("PHOTOGRAPHER".equals(role) || "SERVICE_PROVIDER".equals(role))
+                        && order.getPhotographerId().equals(actor.getId())) return;
             }
         }
         throw new SecurityException("Access denied to this order");

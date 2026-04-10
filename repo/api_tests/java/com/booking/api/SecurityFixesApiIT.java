@@ -71,6 +71,7 @@ class SecurityFixesApiIT extends BaseApiIT {
     @Test void blacklistEmptyReasonRejected() throws Exception {
         MockHttpSession admin = loginAs("admin");
         mvc.perform(post("/api/blacklist").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("userId", 5, "reason", ""))))
             .andExpect(status().isBadRequest())
@@ -80,6 +81,7 @@ class SecurityFixesApiIT extends BaseApiIT {
     @Test void blacklistNullReasonRejected() throws Exception {
         MockHttpSession admin = loginAs("admin");
         mvc.perform(post("/api/blacklist").session(admin)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("userId", 5))))
             .andExpect(status().isBadRequest());
@@ -92,6 +94,7 @@ class SecurityFixesApiIT extends BaseApiIT {
         MockHttpSession photo = loginAs("photo1");
 
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "scoped-test-key")
                 .content(json(Map.of("listingId", 3, "timeSlotId", 4))))
@@ -99,6 +102,7 @@ class SecurityFixesApiIT extends BaseApiIT {
         int orderId = ((Number) parseMap(cr).get("id")).intValue();
 
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "scoped-test-key"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CONFIRMED"));
@@ -109,6 +113,7 @@ class SecurityFixesApiIT extends BaseApiIT {
     @Test void addressInvalidZipRejected() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(post("/api/addresses").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("label", "Bad", "street", "1 St", "city", "X",
                         "state", "IL", "postalCode", "ABCDE", "country", "US"))))
@@ -119,6 +124,7 @@ class SecurityFixesApiIT extends BaseApiIT {
     @Test void addressInvalidStateRejected() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(post("/api/addresses").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("label", "Bad", "street", "1 St", "city", "X",
                         "state", "ZZ", "postalCode", "12345", "country", "US"))))
@@ -129,6 +135,7 @@ class SecurityFixesApiIT extends BaseApiIT {
     @Test void addressValidZipAccepted() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(post("/api/addresses").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("label", "Good", "street", "1 St", "city", "X",
                         "state", "CA", "postalCode", "90210", "country", "US"))))
@@ -140,6 +147,7 @@ class SecurityFixesApiIT extends BaseApiIT {
     @Test void orderWithDeliveryMode() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "delivery-pickup-1")
                 .content(json(Map.of("listingId", 3, "timeSlotId", 4, "deliveryMode", "PICKUP"))))
@@ -150,6 +158,7 @@ class SecurityFixesApiIT extends BaseApiIT {
     @Test void orderCourierRequiresAddress() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "delivery-courier-noaddr")
                 .content(json(Map.of("listingId", 3, "timeSlotId", 4, "deliveryMode", "COURIER"))))
@@ -160,6 +169,7 @@ class SecurityFixesApiIT extends BaseApiIT {
     @Test void orderInvalidDeliveryModeRejected() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "delivery-bad-mode")
                 .content(json(Map.of("listingId", 3, "timeSlotId", 4, "deliveryMode", "DRONE"))))
@@ -185,6 +195,7 @@ class SecurityFixesApiIT extends BaseApiIT {
     @Test void notificationReadAndArchive() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "notif-test-1")
                 .content(json(Map.of("listingId", 3, "timeSlotId", 4))))
@@ -197,9 +208,11 @@ class SecurityFixesApiIT extends BaseApiIT {
         var notifs = om.readValue(nr.getResponse().getContentAsString(), java.util.List.class);
         if (!notifs.isEmpty()) {
             int notifId = ((Number) ((java.util.Map<?,?>) notifs.get(0)).get("id")).intValue();
-            mvc.perform(post("/api/notifications/" + notifId + "/read").session(cust))
+            mvc.perform(post("/api/notifications/" + notifId + "/read").session(cust)
+                    .header("Origin", TEST_ORIGIN))
                 .andExpect(status().isOk());
-            mvc.perform(post("/api/notifications/" + notifId + "/archive").session(cust))
+            mvc.perform(post("/api/notifications/" + notifId + "/archive").session(cust)
+                    .header("Origin", TEST_ORIGIN))
                 .andExpect(status().isOk());
         }
     }

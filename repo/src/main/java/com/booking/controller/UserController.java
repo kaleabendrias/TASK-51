@@ -1,6 +1,7 @@
 package com.booking.controller;
 
 import com.booking.domain.PhotographerDto;
+import com.booking.domain.ProviderDto;
 import com.booking.domain.User;
 import com.booking.service.UserService;
 import com.booking.util.SessionUtil;
@@ -33,6 +34,14 @@ public class UserController {
     public ResponseEntity<?> photographers() {
         List<PhotographerDto> dtos = userService.getPhotographers().stream()
                 .map(PhotographerDto::new)
+                .toList();
+        return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/providers")
+    public ResponseEntity<?> providers() {
+        List<ProviderDto> dtos = userService.getProviders().stream()
+                .map(ProviderDto::new)
                 .toList();
         return ResponseEntity.ok(dtos);
     }

@@ -3,6 +3,7 @@ package com.booking.controller;
 import com.booking.domain.User;
 import com.booking.service.AuthService;
 import com.booking.util.SessionUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +22,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> credentials,
-                                   HttpSession session) {
+                                   HttpServletRequest request) {
         String username = credentials.get("username");
         String password = credentials.get("password");
 
@@ -34,7 +35,13 @@ public class AuthController {
             return ResponseEntity.status(401).body(Map.of("error", "Invalid credentials"));
         }
 
-        SessionUtil.setCurrentUser(session, user);
+        // Session fixation protection: invalidate old session, create fresh one
+        HttpSession oldSession = request.getSession(false);
+        if (oldSession != null) {
+            oldSession.invalidate();
+        }
+        HttpSession newSession = request.getSession(true);
+        SessionUtil.setCurrentUser(newSession, user);
         return ResponseEntity.ok(toUserResponse(user));
     }
 

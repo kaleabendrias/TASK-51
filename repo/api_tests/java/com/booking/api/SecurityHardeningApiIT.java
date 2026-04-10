@@ -27,12 +27,14 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
         // Create an order so we have an orderId for messaging
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2027-06-01",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
             .andExpect(status().isOk()).andReturn();
         int slotId = ((Number) parseMap(slotR).get("id")).intValue();
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust1)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "chat-idor-order")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -40,6 +42,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
         int orderId = ((Number) parseMap(orderR).get("id")).intValue();
 
         MvcResult sendR = mvc.perform(post("/api/messages/send").session(cust1)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("recipientId", 2, "content", "private img", "orderId", orderId))))
             .andExpect(status().isOk()).andReturn();
@@ -48,7 +51,8 @@ class SecurityHardeningApiIT extends BaseApiIT {
         MockMultipartFile img = new MockMultipartFile("file", "secret.jpg", "image/jpeg",
                 new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
         MvcResult imgR = mvc.perform(multipart("/api/messages/conversations/" + convId + "/image")
-                .file(img).session(cust1)).andExpect(status().isOk()).andReturn();
+                .file(img).session(cust1)
+                .header("Origin", TEST_ORIGIN)).andExpect(status().isOk()).andReturn();
         Map<String, Object> att = (Map<String, Object>) parseMap(imgR).get("attachment");
         int attId = ((Number) att.get("id")).intValue();
 
@@ -71,6 +75,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
     @Test @Order(2) void orderCreateWithoutIdempotencyKeyRejected() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 3, "timeSlotId", 4))))
             .andExpect(status().isBadRequest());
@@ -82,6 +87,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
         // Create a fresh slot
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 3, "slotDate", "2026-11-01",
                         "startTime", "09:00", "endTime", "11:00", "capacity", 1))))
@@ -89,6 +95,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
         int freshSlot = ((Number) parseMap(slotR).get("id")).intValue();
 
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "hard-idem-create")
                 .content(json(Map.of("listingId", 3, "timeSlotId", freshSlot))))
@@ -96,7 +103,8 @@ class SecurityHardeningApiIT extends BaseApiIT {
         int orderId = ((Number) parseMap(cr).get("id")).intValue();
 
         // Confirm without key — rejected
-        mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo))
+        mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo)
+                .header("Origin", TEST_ORIGIN))
             .andExpect(status().isBadRequest());
     }
 
@@ -119,6 +127,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
         MockHttpSession s = loginAs("cust1");
         // IL ZIP starts with 6, but CA ZIP starts with 9 — mismatch
         mvc.perform(post("/api/addresses").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("label", "Bad", "street", "1 St", "city", "LA",
                         "state", "CA", "postalCode", "60601", "country", "US"))))
@@ -130,6 +139,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
         MockHttpSession s = loginAs("cust1");
         // CA + 90210 is valid
         mvc.perform(post("/api/addresses").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("label", "OK", "street", "1 St", "city", "LA",
                         "state", "CA", "postalCode", "90210", "country", "US"))))
@@ -155,6 +165,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
         // Create a slot with capacity 1
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-10-01",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -163,6 +174,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
         // First booking succeeds
         mvc.perform(post("/api/orders").session(cust1)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "race-1")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -172,11 +184,13 @@ class SecurityHardeningApiIT extends BaseApiIT {
         // Re-enable cust2 if blacklisted from earlier tests
         MockHttpSession adminS = loginAs("admin");
         mvc.perform(patch("/api/users/5/enabled").session(adminS)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("enabled", true))));
         cust2 = loginAs("cust2");
 
         mvc.perform(post("/api/orders").session(cust2)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "race-2")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -197,6 +211,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
         // Create + complete an order
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("listingId", 1, "slotDate", "2026-10-10",
                         "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
@@ -204,6 +219,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
         int slotId = ((Number) parseMap(slotR).get("id")).intValue();
 
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "pts-rules-create")
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
@@ -211,16 +227,21 @@ class SecurityHardeningApiIT extends BaseApiIT {
         int oid = ((Number) parseMap(cr).get("id")).intValue();
 
         mvc.perform(post("/api/orders/" + oid + "/confirm").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "pts-rules-confirm")).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + oid + "/pay").session(cust)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "pts-rules-pay")
                 .content(json(Map.of("amount", 150, "paymentReference", "R")))).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + oid + "/check-in").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "pts-rules-ci")).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + oid + "/check-out").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "pts-rules-co")).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + oid + "/complete").session(photo)
+                .header("Origin", TEST_ORIGIN)
                 .header("Idempotency-Key", "pts-rules-done")).andExpect(status().isOk());
 
         // Verify points awarded match the rules (ORDER_PAID=10, ORDER_COMPLETED=20 from seed)

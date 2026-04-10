@@ -99,8 +99,9 @@ public class PointsService {
     @Transactional
     public PointsLedgerEntry awardPoints(Long userId, int points, String action,
                                          String refType, Long refId, String description) {
-        int currentBalance = ledgerMapper.getBalance(userId);
-        int newBalance = currentBalance + points;
+        // Atomic DB update prevents race conditions under concurrent requests
+        ledgerMapper.adjustUserBalanceAtomic(userId, points);
+        int newBalance = ledgerMapper.getBalance(userId);
 
         PointsLedgerEntry entry = new PointsLedgerEntry();
         entry.setUserId(userId);
@@ -111,7 +112,6 @@ public class PointsService {
         entry.setReferenceId(refId);
         entry.setDescription(description);
         ledgerMapper.insert(entry);
-        ledgerMapper.updateUserBalance(userId, newBalance);
 
         return entry;
     }
@@ -119,8 +119,9 @@ public class PointsService {
     @Transactional
     public PointsLedgerEntry deductPoints(Long userId, int points, String action,
                                           String refType, Long refId, String description) {
-        int currentBalance = ledgerMapper.getBalance(userId);
-        int newBalance = Math.max(0, currentBalance - points);
+        // Atomic DB update with floor at 0 prevents race conditions
+        ledgerMapper.adjustUserBalanceAtomicFloor(userId, -points);
+        int newBalance = ledgerMapper.getBalance(userId);
 
         PointsLedgerEntry entry = new PointsLedgerEntry();
         entry.setUserId(userId);
@@ -131,7 +132,6 @@ public class PointsService {
         entry.setReferenceId(refId);
         entry.setDescription(description);
         ledgerMapper.insert(entry);
-        ledgerMapper.updateUserBalance(userId, newBalance);
 
         return entry;
     }

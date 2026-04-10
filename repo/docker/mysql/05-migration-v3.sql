@@ -74,7 +74,7 @@ INSERT INTO points_rules (name, description, points, scope, trigger_event) VALUE
 ('ORDER_COMPLETED',  'Bonus points when order completes successfully', 20, 'INDIVIDUAL', 'ORDER_COMPLETED'),
 ('FIRST_ORDER',      'Bonus for placing first order',                 50, 'INDIVIDUAL', 'FIRST_ORDER'),
 ('REFERRAL_BONUS',   'Points for referring a new customer',           30, 'INDIVIDUAL', 'REFERRAL'),
-('TEAM_MILESTONE',   'Points when team reaches 100 bookings',        100, 'TEAM',       'TEAM_MILESTONE'),
+('TEAM_MILESTONE',   'Points when team reaches 100 orders',           100, 'TEAM',       'TEAM_MILESTONE'),
 ('DEPT_EXCELLENCE',  'Department quarterly excellence award',         200, 'DEPARTMENT', 'DEPT_AWARD');
 
 -- Seed notification preferences for existing users

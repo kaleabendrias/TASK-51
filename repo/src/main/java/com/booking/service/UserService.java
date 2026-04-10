@@ -28,6 +28,14 @@ public class UserService {
         return userMapper.findByRoleId(2L);
     }
 
+    public List<User> getProviders() {
+        List<User> photographers = userMapper.findByRoleId(2L);
+        List<User> serviceProviders = userMapper.findByRoleId(4L);
+        List<User> all = new java.util.ArrayList<>(photographers);
+        all.addAll(serviceProviders);
+        return all;
+    }
+
     /**
      * Patch-style selective update — only modifies fields present in the map.
      * Never overwrites password_hash or encrypted phone.

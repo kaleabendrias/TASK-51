@@ -24,6 +24,7 @@ class RbacApiIT extends BaseApiIT {
     @Test void customerCannotBlacklistAnyone() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(post("/api/blacklist").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("userId", 5, "reason", "test"))))
             .andExpect(status().isForbidden());
@@ -37,6 +38,7 @@ class RbacApiIT extends BaseApiIT {
     @Test void servicesEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("photo1");
         mvc.perform(post("/api/services").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("name", "X", "price", 50, "durationMinutes", 30))))
             .andExpect(status().isNotFound());
@@ -45,6 +47,7 @@ class RbacApiIT extends BaseApiIT {
     @Test void customerCannotCreateListing() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(post("/api/listings").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("title", "X", "price", 50, "durationMinutes", 30))))
             .andExpect(status().isForbidden());
@@ -67,6 +70,7 @@ class RbacApiIT extends BaseApiIT {
     @Test void customerCannotAdjustPoints() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(post("/api/points/adjust").session(s)
+                .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("userId", 4, "points", 100, "reason", "test"))))
             .andExpect(status().isForbidden());
