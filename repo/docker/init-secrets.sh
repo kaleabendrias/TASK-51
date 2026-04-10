@@ -2,9 +2,10 @@
 # ──────────────────────────────────────────────────────────────────
 # init-secrets.sh — Single source of truth for runtime credentials.
 #
-# Generates all secrets once and writes them to a shared volume so
-# that both the MySQL and webapp containers read identical values.
-# Runs as a short-lived init container during `docker compose up`.
+# Generates all secrets once and writes them to a shared named
+# volume so that both the MySQL and webapp containers read
+# identical values.  Runs as a short-lived init container during
+# `docker compose up`.
 #
 # Output: /run/secrets/booking/secrets.env  (sourced by both services)
 # ──────────────────────────────────────────────────────────────────
@@ -38,5 +39,13 @@ MYSQL_PASSWORD=${MYSQL_PASSWORD}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 EOF
 
-chmod 600 "$SECRETS_FILE"
+# Readable by all container UIDs (mysql runs as mysql, webapp as root).
+# The volume itself is not exposed outside Docker.
+chmod 644 "$SECRETS_FILE"
+chmod 755 "$SECRETS_DIR"
+
+# Sync to ensure the write is flushed to the volume backing store
+# before this container exits and dependents start.
+sync
+
 echo "[init-secrets] Secrets written to ${SECRETS_FILE}"

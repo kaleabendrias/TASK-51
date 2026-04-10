@@ -1,5 +1,5 @@
 services:
-  # ── Init: generate secrets once into a shared tmpfs volume ─────
+  # ── Init: generate secrets once into a shared named volume ─────
   init-secrets:
     image: alpine:3.20
     container_name: booking-init-secrets
@@ -54,6 +54,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
+      init-secrets:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
     environment:
@@ -70,10 +72,5 @@ services:
 
 volumes:
   secrets:
-    driver: local
-    driver_opts:
-      type: tmpfs
-      device: tmpfs
-      o: size=1m
   mysql-data:
   uploads-data:
