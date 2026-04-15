@@ -1,25 +1,22 @@
 package com.booking.api;
 
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AddressNotifPointsApiIT extends BaseApiIT {
 
     // ---- ADDRESS MANAGEMENT ----
 
-    @Test @Order(1)
+    @Test
     void listAddresses() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/addresses").session(s))
@@ -27,7 +24,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.length()").value(greaterThanOrEqualTo(2)));
     }
 
-    @Test @Order(2)
+    @Test
     void createAddress() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(post("/api/addresses").session(s)
@@ -41,7 +38,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.userId").value(4));
     }
 
-    @Test @Order(3)
+    @Test
     void updateAddress() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(put("/api/addresses/1").session(s)
@@ -54,7 +51,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.label").value("Updated Home"));
     }
 
-    @Test @Order(4)
+    @Test
     void otherUserCannotUpdateMyAddress() throws Exception {
         MockHttpSession s = loginAs("cust2");
         mvc.perform(put("/api/addresses/1").session(s)
@@ -65,19 +62,32 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(status().isForbidden());
     }
 
-    @Test @Order(5)
+    // Creates its own address so it is not order-dependent on seeded data
+    @Test
     void deleteAddress() throws Exception {
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(delete("/api/addresses/2").session(s)
+        // Create a fresh address to delete — never relies on a seeded ID
+        MvcResult createR = mvc.perform(post("/api/addresses").session(s)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("label", "TempToDelete", "street", "999 Delete St",
+                        "city", "Chicago", "state", "IL", "postalCode", "60601",
+                        "country", "US", "isDefault", false))))
+            .andExpect(status().isOk()).andReturn();
+        int newAddrId = ((Number) parseMap(createR).get("id")).intValue();
+
+        mvc.perform(delete("/api/addresses/" + newAddrId).session(s)
                 .header("Origin", TEST_ORIGIN))
             .andExpect(status().isOk());
+
+        // Verify the address no longer appears in the list
         mvc.perform(get("/api/addresses").session(s))
-            .andExpect(jsonPath("$[?(@.id==2)]").doesNotExist());
+            .andExpect(jsonPath("$[?(@.id==" + newAddrId + ")]").doesNotExist());
     }
 
     // ---- NOTIFICATION PREFERENCES ----
 
-    @Test @Order(10)
+    @Test
     void getNotificationPreferences() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/notifications/preferences").session(s))
@@ -86,7 +96,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.orderUpdates").value(true));
     }
 
-    @Test @Order(11)
+    @Test
     void updatePreferencesComplianceCannotBeMuted() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(put("/api/notifications/preferences").session(s)
@@ -101,17 +111,49 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.reminders").value(false));
     }
 
-    @Test @Order(12)
-    void notificationsMaskRecipients() throws Exception {
-        MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/notifications").session(s))
+    // ---- Notifications list returns a structured array ----
+
+    @Test
+    void notificationsListReturnsStructuredArray() throws Exception {
+        // First create an order so there is at least one notification for cust1
+        MockHttpSession photo = loginAs("photo1");
+        MockHttpSession cust = loginAs("cust1");
+
+        // Unmute cust1 to ensure notifications arrive
+        mvc.perform(put("/api/notifications/preferences").session(cust)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("orderUpdates", true, "holds", true, "reminders", true,
+                        "approvals", true, "compliance", true, "muteNonCritical", false))))
             .andExpect(status().isOk());
-        // Notifications may be empty in test, but endpoint works
+
+        MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("listingId", 1, "slotDate", "2027-11-01",
+                        "startTime", "09:00", "endTime", "10:00", "capacity", 5))))
+            .andExpect(status().isOk()).andReturn();
+        int slotId = ((Number) parseMap(slotR).get("id")).intValue();
+
+        mvc.perform(post("/api/orders").session(cust)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", "notif-mask-" + java.util.UUID.randomUUID())
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
+            .andExpect(status().isOk());
+
+        // Verify list is an array with proper per-item structure
+        mvc.perform(get("/api/notifications").session(cust))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(greaterThanOrEqualTo(1)))
+            .andExpect(jsonPath("$[0].id").isNumber())
+            .andExpect(jsonPath("$[0].status").isString());
     }
 
     // ---- POINTS & AWARDS ----
 
-    @Test @Order(20)
+    @Test
     void pointsBalance() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/points/balance").session(s))
@@ -119,15 +161,38 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.balance").isNumber());
     }
 
-    @Test @Order(21)
-    void pointsLeaderboardTieBreak() throws Exception {
+    // ---- Leaderboard is sorted descending by points ----
+
+    @Test
+    void pointsLeaderboardIsDescending() throws Exception {
+        // Award cust1 a large amount to ensure a non-trivial leaderboard
+        MockHttpSession admin = loginAs("admin");
+        mvc.perform(post("/api/points/award").session(admin)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("userId", 4, "points", 500, "description", "Leaderboard sort check"))))
+            .andExpect(status().isOk());
+
         MockHttpSession s = loginAs("cust1");
-        mvc.perform(get("/api/points/leaderboard").session(s))
+        MvcResult r = mvc.perform(get("/api/points/leaderboard").session(s))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isArray());
+            .andExpect(jsonPath("$").isArray())
+            .andReturn();
+
+        List<Map<String, Object>> entries = om.readValue(
+                r.getResponse().getContentAsString(),
+                om.getTypeFactory().constructCollectionType(List.class, Map.class));
+        org.junit.jupiter.api.Assertions.assertFalse(entries.isEmpty(), "Leaderboard must not be empty");
+        int prev = Integer.MAX_VALUE;
+        for (Map<String, Object> e : entries) {
+            int pts = ((Number) e.get("points")).intValue();
+            org.junit.jupiter.api.Assertions.assertTrue(pts <= prev,
+                    "Leaderboard must be descending; found " + pts + " after " + prev);
+            prev = pts;
+        }
     }
 
-    @Test @Order(22)
+    @Test
     void adminManualAdjustmentRequiresNote() throws Exception {
         MockHttpSession s = loginAs("admin");
         // Empty reason -> rejected
@@ -139,7 +204,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.error", containsString("mandatory")));
     }
 
-    @Test @Order(23)
+    @Test
     void adminManualAdjustmentSuccess() throws Exception {
         MockHttpSession s = loginAs("admin");
         mvc.perform(post("/api/points/adjust").session(s)
@@ -151,7 +216,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.reason").value("API test bonus"));
     }
 
-    @Test @Order(24)
+    @Test
     void adjustmentAuditLogImmutable() throws Exception {
         MockHttpSession s = loginAs("admin");
         // Make adjustment
@@ -166,7 +231,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$[?(@.reason=='Audit test')]").exists());
     }
 
-    @Test @Order(25)
+    @Test
     void pointsRulesCRUD() throws Exception {
         MockHttpSession s = loginAs("admin");
         // List
@@ -183,7 +248,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.scope").value("TEAM"));
     }
 
-    @Test @Order(26)
+    @Test
     void customerCannotAccessRules() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/points/rules").session(s))
@@ -192,7 +257,7 @@ class AddressNotifPointsApiIT extends BaseApiIT {
 
     // ---- BLACKLIST INTEGRATION ----
 
-    @Test @Order(30)
+    @Test
     void blacklistBlocksApiAccess() throws Exception {
         MockHttpSession admin = loginAs("admin");
         // Blacklist cust2
@@ -215,10 +280,21 @@ class AddressNotifPointsApiIT extends BaseApiIT {
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.error", containsString("blacklisted")));
 
-        // Lift
+        // Retrieve the dynamic blacklist entry ID for cust2 (userId=5)
         MvcResult blList = mvc.perform(get("/api/blacklist").session(admin))
             .andExpect(status().isOk()).andReturn();
-        mvc.perform(post("/api/blacklist/1/lift").session(admin)
+        List<Map<String, Object>> blEntries = om.readValue(
+                blList.getResponse().getContentAsString(),
+                om.getTypeFactory().constructCollectionType(List.class, Map.class));
+        int blId = blEntries.stream()
+            .filter(e -> Boolean.TRUE.equals(e.get("active"))
+                    && ((Number) e.get("userId")).intValue() == 5)
+            .mapToInt(e -> ((Number) e.get("id")).intValue())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected active blacklist entry for userId=5"));
+
+        // Lift using the dynamic ID
+        mvc.perform(post("/api/blacklist/" + blId + "/lift").session(admin)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("reason", "Reinstated after test"))))

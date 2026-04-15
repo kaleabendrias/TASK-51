@@ -1,26 +1,23 @@
 package com.booking.api;
 
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SecurityHardeningApiIT extends BaseApiIT {
 
     // ---- Chat attachment IDOR: non-participant denied ----
 
-    @Test @Order(1) void chatAttachmentDownloadDeniedForNonParticipant() throws Exception {
+    @Test void chatAttachmentDownloadDeniedForNonParticipant() throws Exception {
         MockHttpSession cust1 = loginAs("cust1");
         MockHttpSession cust2 = loginAs("cust2");
         MockHttpSession photo = loginAs("photo1");
@@ -36,7 +33,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust1)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "chat-idor-order")
+                .header("Idempotency-Key", "chat-idor-order-" + UUID.randomUUID())
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(orderR).get("id")).intValue();
@@ -72,7 +69,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
     // ---- Idempotency key mandatory ----
 
-    @Test @Order(2) void orderCreateWithoutIdempotencyKeyRejected() throws Exception {
+    @Test void orderCreateWithoutIdempotencyKeyRejected() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
@@ -81,7 +78,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
             .andExpect(status().isBadRequest());
     }
 
-    @Test @Order(3) void orderConfirmWithoutIdempotencyKeyRejected() throws Exception {
+    @Test void orderConfirmWithoutIdempotencyKeyRejected() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
 
@@ -97,7 +94,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "hard-idem-create")
+                .header("Idempotency-Key", "hard-idem-create-" + UUID.randomUUID())
                 .content(json(Map.of("listingId", 3, "timeSlotId", freshSlot))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(cr).get("id")).intValue();
@@ -110,7 +107,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
     // ---- Paginated search returns items array, not raw array ----
 
-    @Test @Order(4) void searchReturnsItemsAndPaginationMeta() throws Exception {
+    @Test void searchReturnsItemsAndPaginationMeta() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/listings/search?page=1&size=2").session(s))
             .andExpect(status().isOk())
@@ -123,7 +120,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
     // ---- ZIP-to-state consistency ----
 
-    @Test @Order(5) void zipStateConsistencyRejected() throws Exception {
+    @Test void zipStateConsistencyRejected() throws Exception {
         MockHttpSession s = loginAs("cust1");
         // IL ZIP starts with 6, but CA ZIP starts with 9 — mismatch
         mvc.perform(post("/api/addresses").session(s)
@@ -135,7 +132,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.error", containsString("not consistent")));
     }
 
-    @Test @Order(6) void zipStateConsistencyAccepted() throws Exception {
+    @Test void zipStateConsistencyAccepted() throws Exception {
         MockHttpSession s = loginAs("cust1");
         // CA + 90210 is valid
         mvc.perform(post("/api/addresses").session(s)
@@ -148,7 +145,7 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
     // ---- Phone masking in responses ----
 
-    @Test @Order(7) void phoneFieldMaskedInAllUserResponses() throws Exception {
+    @Test void phoneFieldMaskedInAllUserResponses() throws Exception {
         MockHttpSession admin = loginAs("admin");
         mvc.perform(get("/api/users").session(admin))
             .andExpect(status().isOk())
@@ -158,10 +155,17 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
     // ---- Concurrent slot race condition (oversell prevention) ----
 
-    @Test @Order(8) void concurrentSlotBookingPreventsOversell() throws Exception {
+    @Test void concurrentSlotBookingPreventsOversell() throws Exception {
         MockHttpSession cust1 = loginAs("cust1");
-        MockHttpSession cust2 = loginAs("cust2");
         MockHttpSession photo = loginAs("photo1");
+
+        // Ensure cust2 is enabled before this test
+        MockHttpSession adminS = loginAs("admin");
+        mvc.perform(patch("/api/users/5/enabled").session(adminS)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("enabled", true))))
+            .andExpect(status().isOk());
 
         // Create a slot with capacity 1
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
@@ -176,23 +180,16 @@ class SecurityHardeningApiIT extends BaseApiIT {
         mvc.perform(post("/api/orders").session(cust1)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "race-1")
+                .header("Idempotency-Key", "race-1-" + UUID.randomUUID())
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk());
 
         // Second booking on same slot must fail (oversell prevention)
-        // Re-enable cust2 if blacklisted from earlier tests
-        MockHttpSession adminS = loginAs("admin");
-        mvc.perform(patch("/api/users/5/enabled").session(adminS)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("enabled", true))));
-        cust2 = loginAs("cust2");
-
+        MockHttpSession cust2 = loginAs("cust2");
         mvc.perform(post("/api/orders").session(cust2)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "race-2")
+                .header("Idempotency-Key", "race-2-" + UUID.randomUUID())
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error", containsString("fully booked")));
@@ -200,9 +197,10 @@ class SecurityHardeningApiIT extends BaseApiIT {
 
     // ---- Dynamic points rules (no hardcoded values) ----
 
-    @Test @Order(9) void orderCompletionUsesPointsRulesEngine() throws Exception {
+    @Test void orderCompletionUsesPointsRulesEngine() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
+        String run = UUID.randomUUID().toString();
 
         // Get initial balance
         MvcResult balR = mvc.perform(get("/api/points/balance").session(cust))
@@ -221,28 +219,28 @@ class SecurityHardeningApiIT extends BaseApiIT {
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "pts-rules-create")
+                .header("Idempotency-Key", "pts-rules-create-" + run)
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int oid = ((Number) parseMap(cr).get("id")).intValue();
 
         mvc.perform(post("/api/orders/" + oid + "/confirm").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "pts-rules-confirm")).andExpect(status().isOk());
+                .header("Idempotency-Key", "pts-rules-confirm-" + run)).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + oid + "/pay").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "pts-rules-pay")
+                .header("Idempotency-Key", "pts-rules-pay-" + run)
                 .content(json(Map.of("amount", 150, "paymentReference", "R")))).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + oid + "/check-in").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "pts-rules-ci")).andExpect(status().isOk());
+                .header("Idempotency-Key", "pts-rules-ci-" + run)).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + oid + "/check-out").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "pts-rules-co")).andExpect(status().isOk());
+                .header("Idempotency-Key", "pts-rules-co-" + run)).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + oid + "/complete").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "pts-rules-done")).andExpect(status().isOk());
+                .header("Idempotency-Key", "pts-rules-done-" + run)).andExpect(status().isOk());
 
         // Verify points awarded match the rules (ORDER_PAID=10, ORDER_COMPLETED=20 from seed)
         MvcResult balAfterR = mvc.perform(get("/api/points/balance").session(cust))

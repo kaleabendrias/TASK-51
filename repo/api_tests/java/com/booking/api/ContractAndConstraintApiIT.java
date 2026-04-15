@@ -1,26 +1,23 @@
 package com.booking.api;
 
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ContractAndConstraintApiIT extends BaseApiIT {
 
     // ---- Chat: only buyer+seller of the order can create conversations ----
 
-    @Test @Order(1) void chatDeniedForNonOrderParticipant() throws Exception {
+    @Test void chatDeniedForNonOrderParticipant() throws Exception {
         MockHttpSession cust1 = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
 
@@ -36,7 +33,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust1)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "chat-scope-1")
+                .header("Idempotency-Key", "chat-scope-1-" + UUID.randomUUID())
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(orderR).get("id")).intValue();
@@ -45,7 +42,8 @@ class ContractAndConstraintApiIT extends BaseApiIT {
         MockHttpSession admin = loginAs("admin");
         mvc.perform(patch("/api/users/5/enabled").session(admin)
                 .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON).content(json(Map.of("enabled", true))));
+                .contentType(MediaType.APPLICATION_JSON).content(json(Map.of("enabled", true))))
+            .andExpect(status().isOk());
         MockHttpSession cust2 = loginAs("cust2");
         mvc.perform(post("/api/messages/send").session(cust2)
                 .header("Origin", TEST_ORIGIN)
@@ -55,7 +53,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.error", containsString("buyer or seller")));
     }
 
-    @Test @Order(2) void chatRecipientMustBeOrderParticipant() throws Exception {
+    @Test void chatRecipientMustBeOrderParticipant() throws Exception {
         MockHttpSession cust1 = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
 
@@ -70,7 +68,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust1)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "chat-scope-2")
+                .header("Idempotency-Key", "chat-scope-2-" + UUID.randomUUID())
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(orderR).get("id")).intValue();
@@ -86,7 +84,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
 
     // ---- Reschedule: must stay within same listing ----
 
-    @Test @Order(3) void rescheduleToDifferentListingDenied() throws Exception {
+    @Test void rescheduleToDifferentListingDenied() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo1 = loginAs("photo1");
         MockHttpSession photo2 = loginAs("photo2");
@@ -113,7 +111,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "resched-listing-1")
+                .header("Idempotency-Key", "resched-listing-1-" + UUID.randomUUID())
                 .content(json(Map.of("listingId", 1, "timeSlotId", slot1))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(orderR).get("id")).intValue();
@@ -122,7 +120,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
         mvc.perform(post("/api/orders/" + orderId + "/reschedule").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "resched-listing-deny")
+                .header("Idempotency-Key", "resched-listing-deny-" + UUID.randomUUID())
                 .content(json(Map.of("newTimeSlotId", slot2))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error", containsString("different listing")));
@@ -130,7 +128,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
 
     // ---- Server-side sort contract ----
 
-    @Test @Order(4) void serverSideSortByPriceDesc() throws Exception {
+    @Test void serverSideSortByPriceDesc() throws Exception {
         MockHttpSession s = loginAs("cust1");
         MvcResult r = mvc.perform(get("/api/listings/search?sortBy=price_desc&size=100").session(s))
             .andExpect(status().isOk())
@@ -149,7 +147,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
 
     // ---- Structured location query ----
 
-    @Test @Order(5) void structuredLocationQueryAccepted() throws Exception {
+    @Test void structuredLocationQueryAccepted() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/listings/search?locationState=CA&locationCity=LA&locationNeighborhood=Hollywood").session(s))
             .andExpect(status().isOk())
@@ -160,7 +158,7 @@ class ContractAndConstraintApiIT extends BaseApiIT {
     // ---- Application fails without ENCRYPTION_KEY ----
     // (This is a startup-time check — we verify FieldEncryptor.isConfigured() returns true
     //  in the running test context, meaning the key was properly loaded from config)
-    @Test @Order(6) void encryptionKeyIsConfigured() throws Exception {
+    @Test void encryptionKeyIsConfigured() throws Exception {
         org.junit.jupiter.api.Assertions.assertTrue(
                 com.booking.util.FieldEncryptor.isConfigured(),
                 "FieldEncryptor must be configured at startup — app should fail without ENCRYPTION_KEY");

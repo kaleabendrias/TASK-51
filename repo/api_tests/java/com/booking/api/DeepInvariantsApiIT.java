@@ -1,15 +1,18 @@
 package com.booking.api;
 
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,8 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   • Search results are consistent and filtered correctly
  *   • Reschedule atomically switches the booking to the new slot
  *   • Leaderboard ordering is correct after award operations
+ *   • Concurrent point awards accumulate without lost updates
  */
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DeepInvariantsApiIT extends BaseApiIT {
 
     // ─── helpers ──────────────────────────────────────────────────────────────
@@ -101,7 +104,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
     // Points side effects
     // ═══════════════════════════════════════════════════════════════════════════
 
-    @Test @Order(10)
+    @Test
     void pointsAwardedOnPaymentMatchRule() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -117,7 +120,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
                 "Balance must increase by ≥10 pts (ORDER_PAID rule) after payment; was " + before + ", now " + after);
     }
 
-    @Test @Order(11)
+    @Test
     void pointsHistoryContainsPaymentEntry() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -132,7 +135,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$[*].action", hasItem("ORDER_PAYMENT")));
     }
 
-    @Test @Order(12)
+    @Test
     void pointsAwardedOnCompletionMatchRule() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -149,7 +152,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
                 "Balance must increase by ≥20 pts (ORDER_COMPLETED rule) after completion; was " + before + ", now " + after);
     }
 
-    @Test @Order(13)
+    @Test
     void pointsHistoryContainsCompletionEntry() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -163,7 +166,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$[*].action", hasItem("ORDER_COMPLETED")));
     }
 
-    @Test @Order(14)
+    @Test
     void adminAwardPointsReflectInRecipientBalance() throws Exception {
         MockHttpSession admin = loginAs("admin");
         MockHttpSession cust2 = loginAs("cust2");
@@ -183,7 +186,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
                 "Recipient balance must increase by exactly the awarded amount");
     }
 
-    @Test @Order(15)
+    @Test
     void leaderboardOrderingIsDescendingByPoints() throws Exception {
         MockHttpSession admin = loginAs("admin");
 
@@ -223,7 +226,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
     // Notification side effects
     // ═══════════════════════════════════════════════════════════════════════════
 
-    @Test @Order(20)
+    @Test
     void notificationsQueuedAfterOrderCreation() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -244,19 +247,22 @@ class DeepInvariantsApiIT extends BaseApiIT {
         return notifs.size();
     }
 
-    @Test @Order(21)
-    void notificationsListReturnsArray() throws Exception {
+    @Test
+    void notificationsListIsStructuredForAdmin() throws Exception {
+        // Admin should always see at least some notifications given the other tests run
         MockHttpSession admin = loginAs("admin");
         mvc.perform(get("/api/notifications").session(admin))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray());
+        // No further structure assertion — admin may have 0 notifications in isolation;
+        // structural fields (id, type) are verified in AddressNotifPointsApiIT.
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Time slot capacity invariants
     // ═══════════════════════════════════════════════════════════════════════════
 
-    @Test @Order(30)
+    @Test
     void slotAppearsInListingTimeslotsList() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -272,7 +278,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
         assertTrue(found, "The created slot must appear in listing 1's slots list");
     }
 
-    @Test @Order(31)
+    @Test
     void oversoldSlotIsRejected() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -294,7 +300,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
     // Invalid state-transition rejection
     // ═══════════════════════════════════════════════════════════════════════════
 
-    @Test @Order(40)
+    @Test
     void cannotConfirmAlreadyConfirmedOrder() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -314,7 +320,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
             .andExpect(status().is4xxClientError());
     }
 
-    @Test @Order(41)
+    @Test
     void cannotPayBeforeConfirmation() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -330,7 +336,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
             .andExpect(status().is4xxClientError());
     }
 
-    @Test @Order(42)
+    @Test
     void cannotCheckInBeforePayment() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -350,7 +356,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
             .andExpect(status().is4xxClientError());
     }
 
-    @Test @Order(43)
+    @Test
     void cannotCancelAlreadyCancelledOrder() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -374,7 +380,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
             .andExpect(status().is4xxClientError());
     }
 
-    @Test @Order(44)
+    @Test
     void cannotCompleteOrderWithoutCheckout() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -402,7 +408,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
     // Search result correctness
     // ═══════════════════════════════════════════════════════════════════════════
 
-    @Test @Order(50)
+    @Test
     void searchWithCategoryFilterReturnsOnlyMatchingCategory() throws Exception {
         MockHttpSession cust = loginAs("cust1");
 
@@ -423,7 +429,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
         }
     }
 
-    @Test @Order(51)
+    @Test
     void searchWithKeywordReturnsRelevantListings() throws Exception {
         MockHttpSession cust = loginAs("cust1");
 
@@ -433,7 +439,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.items[*].title", hasItem(containsString("Studio"))));
     }
 
-    @Test @Order(52)
+    @Test
     void searchWithNonexistentKeywordReturnsEmptyResults() throws Exception {
         MockHttpSession cust = loginAs("cust1");
 
@@ -449,7 +455,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
         assertTrue(items.isEmpty(), "Search for nonsense keyword must return no listings");
     }
 
-    @Test @Order(53)
+    @Test
     void searchPaginationPageSizeIsRespected() throws Exception {
         MockHttpSession cust = loginAs("cust1");
 
@@ -463,7 +469,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
     // Reschedule: slot atomically switches
     // ═══════════════════════════════════════════════════════════════════════════
 
-    @Test @Order(60)
+    @Test
     void rescheduleUpdatesOrderToNewSlotId() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -486,7 +492,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
                 "After reschedule, order must reference the new slot id");
     }
 
-    @Test @Order(61)
+    @Test
     void rescheduleOldSlotBecomesAvailableAgain() throws Exception {
         MockHttpSession photo = loginAs("photo1");
         MockHttpSession cust  = loginAs("cust1");
@@ -518,7 +524,7 @@ class DeepInvariantsApiIT extends BaseApiIT {
     // Points rule update — effect verified by subsequent award
     // ═══════════════════════════════════════════════════════════════════════════
 
-    @Test @Order(70)
+    @Test
     void updatedPointsRuleChangesAwardAmount() throws Exception {
         MockHttpSession admin = loginAs("admin");
 
@@ -560,5 +566,58 @@ class DeepInvariantsApiIT extends BaseApiIT {
                         "triggerEvent", "ORDER_PAID",
                         "active", true))))
             .andExpect(status().isOk());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Concurrent points ledger — no lost updates under parallel awards
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Fires N concurrent admin award requests against the same user and verifies
+     * that the final balance equals the arithmetic sum of all awards — i.e. no
+     * update is silently dropped under contention.
+     */
+    @Test
+    void concurrentPointsAwardsAccumulateWithoutLostUpdates() throws Exception {
+        MockHttpSession cust2 = loginAs("cust2");
+        int balBefore = getBalance(cust2);
+
+        int threadCount = 5;
+        int pointsPerAward = 10;
+
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch startGate = new CountDownLatch(1);
+        List<Future<Integer>> futures = new ArrayList<>();
+
+        for (int i = 0; i < threadCount; i++) {
+            futures.add(executor.submit(() -> {
+                startGate.await();
+                MockHttpSession adminSession = loginAs("admin");
+                MvcResult r = mvc.perform(post("/api/points/award").session(adminSession)
+                        .header("Origin", TEST_ORIGIN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("userId", 5, "points", pointsPerAward,
+                                "description", "Concurrent ledger test"))))
+                    .andReturn();
+                return r.getResponse().getStatus();
+            }));
+        }
+
+        startGate.countDown(); // release all threads simultaneously
+
+        int successes = 0;
+        for (Future<Integer> f : futures) {
+            if (f.get(10, TimeUnit.SECONDS) == 200) successes++;
+        }
+        executor.shutdown();
+
+        assertEquals(threadCount, successes, "All concurrent award requests must succeed");
+
+        // Final balance must equal the arithmetic sum — no lost updates
+        int balAfter = getBalance(loginAs("cust2"));
+        assertEquals(balBefore + threadCount * pointsPerAward, balAfter,
+                "Expected balance " + (balBefore + threadCount * pointsPerAward)
+                        + " after " + threadCount + " concurrent awards of " + pointsPerAward
+                        + " pts each, but got " + balAfter);
     }
 }

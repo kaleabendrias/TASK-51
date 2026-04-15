@@ -7,6 +7,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -27,6 +28,7 @@ class CoverageBoostApiIT extends BaseApiIT {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession admin = loginAs("admin");
         MockHttpSession photo = loginAs("photo1");
+        String run = UUID.randomUUID().toString();
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -38,32 +40,40 @@ class CoverageBoostApiIT extends BaseApiIT {
         MvcResult r = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "cov-refund-create")
+                .header("Idempotency-Key", "cov-refund-create-" + run)
                 .content(json(Map.of("listingId", 3, "timeSlotId", freshSlot))))
             .andExpect(status().isOk()).andReturn();
         int id = ((Number) parseMap(r).get("id")).intValue();
         mvc.perform(post("/api/orders/" + id + "/confirm").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "cov-refund-c")).andExpect(status().isOk());
+                .header("Idempotency-Key", "cov-refund-c-" + run)).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/pay").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "cov-refund-p")
+                .header("Idempotency-Key", "cov-refund-p-" + run)
                 .content(json(Map.of("amount", 300.0, "paymentReference", "R1")))).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/check-in").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "cov-refund-ci")).andExpect(status().isOk());
+                .header("Idempotency-Key", "cov-refund-ci-" + run)).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/check-out").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "cov-refund-co")).andExpect(status().isOk());
+                .header("Idempotency-Key", "cov-refund-co-" + run)).andExpect(status().isOk());
         mvc.perform(post("/api/orders/" + id + "/complete").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "cov-refund-done")).andExpect(status().isOk());
-        mvc.perform(post("/api/orders/" + id + "/refund").session(admin)
+                .header("Idempotency-Key", "cov-refund-done-" + run)).andExpect(status().isOk());
+
+        // Verify refund response carries the REFUNDED status and the refund amount
+        MvcResult refundR = mvc.perform(post("/api/orders/" + id + "/refund").session(admin)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "cov-refund-refund")
+                .header("Idempotency-Key", "cov-refund-refund-" + run)
                 .content(json(Map.of("amount", 300.0, "reason", "Quality issue"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("REFUNDED"))
+            .andReturn();
+
+        // Verify GET on the order still reflects REFUNDED state
+        mvc.perform(get("/api/orders/" + id).session(admin))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("REFUNDED"));
     }
@@ -71,6 +81,7 @@ class CoverageBoostApiIT extends BaseApiIT {
     @Test void rescheduleOrder() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
+        String run = UUID.randomUUID().toString();
         MvcResult slot1R = mvc.perform(post("/api/timeslots").session(photo)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -88,21 +99,30 @@ class CoverageBoostApiIT extends BaseApiIT {
         MvcResult r = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "cov-resched-create")
+                .header("Idempotency-Key", "cov-resched-create-" + run)
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotA))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(r).get("id")).intValue();
-        mvc.perform(post("/api/orders/" + orderId + "/reschedule").session(cust)
+
+        // Verify the reschedule response reflects the new slot id
+        MvcResult reschedR = mvc.perform(post("/api/orders/" + orderId + "/reschedule").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "cov-resched-do")
+                .header("Idempotency-Key", "cov-resched-do-" + run)
                 .content(json(Map.of("newTimeSlotId", slotB))))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andReturn();
+
+        // The rescheduled order must reference slotB, not slotA
+        org.junit.jupiter.api.Assertions.assertEquals(
+                slotB, ((Number) parseMap(reschedR).get("timeSlotId")).intValue(),
+                "Rescheduled order must reference the new slot");
     }
 
     @Test void chatImageDownload() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
+        String run = UUID.randomUUID().toString();
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -113,7 +133,7 @@ class CoverageBoostApiIT extends BaseApiIT {
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "chat-dl-order")
+                .header("Idempotency-Key", "chat-dl-order-" + run)
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(orderR).get("id")).intValue();
@@ -164,24 +184,46 @@ class CoverageBoostApiIT extends BaseApiIT {
             .andExpect(status().isForbidden());
     }
 
+    // ---- Points history has structure (not just an array) ----
+
     @Test void pointsHistoryForUser() throws Exception {
+        // Award some points first so history is guaranteed non-empty
+        MockHttpSession admin = loginAs("admin");
+        mvc.perform(post("/api/points/award").session(admin)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("userId", 4, "points", 5, "description", "History probe"))))
+            .andExpect(status().isOk());
+
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/points/history").session(s))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isArray());
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(greaterThanOrEqualTo(1)))
+            .andExpect(jsonPath("$[0].action").isString())
+            .andExpect(jsonPath("$[0].points").isNumber());
     }
+
+    // ---- Notification preferences: compliance is always forced on, PUT is persisted ----
 
     @Test void notificationPreferencesUpdate() throws Exception {
         MockHttpSession s = loginAs("photo1");
+
+        // GET returns expected boolean fields
         mvc.perform(get("/api/notifications/preferences").session(s))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.compliance").isBoolean())
+            .andExpect(jsonPath("$.orderUpdates").isBoolean());
+
+        // PUT with compliance=false — server must coerce it to true
         mvc.perform(put("/api/notifications/preferences").session(s)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("orderUpdates", true, "holds", false,
                         "reminders", true, "approvals", true,
-                        "compliance", true, "muteNonCritical", false))))
-            .andExpect(status().isOk());
+                        "compliance", false, "muteNonCritical", false))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.compliance").value(true));   // never mutable
     }
 
     @Test void blacklistCheckUser() throws Exception {
@@ -216,37 +258,48 @@ class CoverageBoostApiIT extends BaseApiIT {
             .andExpect(status().isNotFound());
     }
 
+    // ---- Search suggestions are server-side (keyword recorded, then returned) ----
+
     @Test void searchSuggestionsEndpoint() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/listings/search?keyword=portrait").session(s))
             .andExpect(status().isOk());
         mvc.perform(get("/api/listings/search/suggestions").session(s))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isArray());
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$", hasItem("portrait")));
     }
+
+    // ---- SSE endpoint advertises text/event-stream ----
 
     @Test void sseStreamEndpointConnects() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/messages/stream").session(s))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith("text/event-stream"));
     }
+
+    // ---- Disabled user blocked immediately on existing session ----
 
     @Test void disabledUserBlockedOnNextRequest() throws Exception {
         MockHttpSession admin = loginAs("admin");
         MockHttpSession cust2 = loginAs("cust2");
-        mvc.perform(patch("/api/users/5/enabled").session(admin)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("enabled", false))))
-            .andExpect(status().isOk());
-        mvc.perform(get("/api/orders").session(cust2))
-            .andExpect(status().isForbidden())
-            .andExpect(jsonPath("$.error", containsString("disabled")));
-        mvc.perform(patch("/api/users/5/enabled").session(admin)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("enabled", true))))
-            .andExpect(status().isOk());
+        try {
+            mvc.perform(patch("/api/users/5/enabled").session(admin)
+                    .header("Origin", TEST_ORIGIN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json(Map.of("enabled", false))))
+                .andExpect(status().isOk());
+            mvc.perform(get("/api/orders").session(cust2))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error", containsString("disabled")));
+        } finally {
+            mvc.perform(patch("/api/users/5/enabled").session(admin)
+                    .header("Origin", TEST_ORIGIN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json(Map.of("enabled", true))))
+                .andExpect(status().isOk());
+        }
     }
 
     // ---- Photographer DTO hides sensitive fields ----
