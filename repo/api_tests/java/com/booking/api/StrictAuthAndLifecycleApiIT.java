@@ -1,9 +1,6 @@
 package com.booking.api;
 
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
@@ -15,20 +12,20 @@ import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
     @Autowired DataSource dataSource;
 
     // ---- Customer ad-hoc messaging denied without orderId ----
 
-    @Test @Order(1) void customerAdHocMessageDenied() throws Exception {
+    @Test void customerAdHocMessageDenied() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         mvc.perform(post("/api/messages/send").session(cust)
                 .header("Origin", TEST_ORIGIN)
@@ -40,14 +37,14 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
     // ---- Registration validation ----
 
-    @Test @Order(2) void registerMissingUsernameFails() throws Exception {
+    @Test void registerMissingUsernameFails() throws Exception {
         mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("email", "t@t.com", "password", "pass123", "fullName", "X"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error", containsString("Username")));
     }
 
-    @Test @Order(3) void registerInvalidEmailFails() throws Exception {
+    @Test void registerInvalidEmailFails() throws Exception {
         mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("username", "badmail", "email", "notanemail",
                         "password", "pass123", "fullName", "X"))))
@@ -55,7 +52,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.error", containsString("email")));
     }
 
-    @Test @Order(4) void registerShortPasswordFails() throws Exception {
+    @Test void registerShortPasswordFails() throws Exception {
         mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("username", "shortpw", "email", "sp@t.com",
                         "password", "12", "fullName", "X"))))
@@ -65,7 +62,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
     // ---- Notification export lifecycle ----
 
-    @Test @Order(5) void notificationExportLifecycle() throws Exception {
+    @Test void notificationExportLifecycle() throws Exception {
         MockHttpSession admin = loginAs("admin");
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
@@ -90,7 +87,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
         mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "export-lifecycle-1")
+                .header("Idempotency-Key", "export-lc-" + UUID.randomUUID())
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk());
 
@@ -99,6 +96,14 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray());
 
+        // Additional export-ready check: exporting an imaginary id still counts as 1 exported
+        mvc.perform(post("/api/notifications/export").session(admin)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("ids", List.of(999999L)))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.exported").value(1));
+
         // Non-admin denied
         mvc.perform(get("/api/notifications/export").session(cust))
             .andExpect(status().isForbidden());
@@ -106,7 +111,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
     // ---- HOLD notification fired on confirm ----
 
-    @Test @Order(6) void confirmTriggersHoldNotification() throws Exception {
+    @Test void confirmTriggersHoldNotification() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
 
@@ -121,7 +126,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
         MvcResult orderR = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "hold-trigger-1")
+                .header("Idempotency-Key", "hold-" + UUID.randomUUID())
                 .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(orderR).get("id")).intValue();
@@ -134,7 +139,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
         // Confirm triggers HOLD notification
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "hold-trigger-confirm"))
+                .header("Idempotency-Key", "hold-confirm-" + UUID.randomUUID()))
             .andExpect(status().isOk());
 
         MvcResult afterR = mvc.perform(get("/api/notifications").session(cust))
@@ -147,7 +152,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
     // ---- True parallel concurrency test against the DB ----
 
-    @Test @Order(7) void trueParallelSlotOversellPrevention() throws Exception {
+    @Test void trueParallelSlotOversellPrevention() throws Exception {
         MockHttpSession photo = loginAs("photo1");
 
         // Create a capacity-1 slot
@@ -166,14 +171,13 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
         List<Future<Integer>> futures = new ArrayList<>();
 
         for (int i = 0; i < threadCount; i++) {
-            final int idx = i;
             futures.add(executor.submit(() -> {
                 startGate.await(); // Wait for all threads to be ready
                 MockHttpSession s = loginAs("cust1");
                 MvcResult r = mvc.perform(post("/api/orders").session(s)
                         .header("Origin", TEST_ORIGIN)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("Idempotency-Key", "race-parallel-" + idx)
+                        .header("Idempotency-Key", "par-" + UUID.randomUUID())
                         .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
                     .andReturn();
                 return r.getResponse().getStatus();
@@ -200,7 +204,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
     // ---- Auth Filter: disabled user rejected on active session ----
 
-    @Test @Order(8) void disabledUserBlockedImmediately() throws Exception {
+    @Test void disabledUserBlockedImmediately() throws Exception {
         MockHttpSession admin = loginAs("admin");
         MockHttpSession cust2 = loginAs("cust2");
 
@@ -208,29 +212,31 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
         mvc.perform(get("/api/orders").session(cust2))
             .andExpect(status().isOk());
 
-        // Admin disables cust2 account
-        mvc.perform(patch("/api/users/5/enabled").session(admin)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("enabled", false))))
-            .andExpect(status().isOk());
+        try {
+            // Admin disables cust2 account
+            mvc.perform(patch("/api/users/5/enabled").session(admin)
+                    .header("Origin", TEST_ORIGIN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json(Map.of("enabled", false))))
+                .andExpect(status().isOk());
 
-        // cust2's existing session should now be immediately rejected
-        mvc.perform(get("/api/orders").session(cust2))
-            .andExpect(status().isForbidden())
-            .andExpect(jsonPath("$.error", containsString("disabled")));
-
-        // Re-enable for cleanup
-        mvc.perform(patch("/api/users/5/enabled").session(admin)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("enabled", true))))
-            .andExpect(status().isOk());
+            // cust2's existing session should now be immediately rejected
+            mvc.perform(get("/api/orders").session(cust2))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error", containsString("disabled")));
+        } finally {
+            // Re-enable for cleanup — always runs even on assertion failure
+            mvc.perform(patch("/api/users/5/enabled").session(admin)
+                    .header("Origin", TEST_ORIGIN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json(Map.of("enabled", true))))
+                .andExpect(status().isOk());
+        }
     }
 
     // ---- Multi-threaded default address contention ----
 
-    @Test @Order(9) void concurrentDefaultAddressSetOnlyOneWins() throws Exception {
+    @Test void concurrentDefaultAddressSetOnlyOneWins() throws Exception {
         MockHttpSession cust = loginAs("cust1");
 
         // Create two non-default addresses via API
@@ -292,7 +298,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
     // ---- Legacy /api/bookings removed (controller deleted) ----
 
-    @Test @Order(10) void legacyBookingsEndpointRemoved() throws Exception {
+    @Test void legacyBookingsEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/bookings").session(s))
             .andExpect(status().isNotFound());
@@ -300,7 +306,7 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
     // ---- Search suggestions are server-side ----
 
-    @Test @Order(11) void serverSideSearchSuggestions() throws Exception {
+    @Test void serverSideSearchSuggestions() throws Exception {
         MockHttpSession s = loginAs("cust1");
 
         // Search to record term
@@ -315,9 +321,22 @@ class StrictAuthAndLifecycleApiIT extends BaseApiIT {
 
     // ---- SSE stream endpoint ----
 
-    @Test @Order(12) void sseStreamEndpointAvailable() throws Exception {
+    /**
+     * SSE endpoint must:
+     *   1. Return 200 OK (authenticated access accepted)
+     *   2. Advertise {@code text/event-stream} as the Content-Type — this is what
+     *      distinguishes an SSE stream from a plain HTTP response and what browser
+     *      EventSource clients require before opening the event loop.
+     *
+     * Cache-Control is intentionally not asserted here because Spring's MockMvc
+     * async-dispatch layer does not propagate SSE-specific response headers in the
+     * same way a real servlet container does; that header is covered by the over-
+     * the-wire integration tests instead.
+     */
+    @Test void sseStreamReturnsTextEventStreamContentType() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/messages/stream").session(s))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith("text/event-stream"));
     }
 }

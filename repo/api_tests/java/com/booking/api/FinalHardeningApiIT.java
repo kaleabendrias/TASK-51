@@ -1,27 +1,32 @@
 package com.booking.api;
 
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FinalHardeningApiIT extends BaseApiIT {
 
     // ---- Courier address ownership IDOR ----
 
-    @Test @Order(1) void courierWithOtherUsersAddressDenied() throws Exception {
+    @Test void courierWithOtherUsersAddressDenied() throws Exception {
         MockHttpSession cust1 = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
+
+        // Ensure cust2 is enabled at test start so previous failures don't cascade
+        MockHttpSession admin = loginAs("admin");
+        mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("enabled", true))))
+            .andExpect(status().isOk());
 
         // cust1's address is ID 1; create a fresh slot
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
@@ -33,11 +38,6 @@ class FinalHardeningApiIT extends BaseApiIT {
         int slotId = ((Number) parseMap(slotR).get("id")).intValue();
 
         // cust2 tries to use cust1's address (ID 1) for courier
-        MockHttpSession admin = loginAs("admin");
-        mvc.perform(patch("/api/users/5/enabled").session(admin)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("enabled", true))));
         MockHttpSession cust2 = loginAs("cust2");
         mvc.perform(post("/api/orders").session(cust2)
                 .header("Origin", TEST_ORIGIN)
@@ -49,7 +49,7 @@ class FinalHardeningApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.error", containsString("does not belong")));
     }
 
-    @Test @Order(2) void courierWithOwnAddressSucceeds() throws Exception {
+    @Test void courierWithOwnAddressSucceeds() throws Exception {
         MockHttpSession cust = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
@@ -72,14 +72,25 @@ class FinalHardeningApiIT extends BaseApiIT {
 
     // ---- Admin patch update does not overwrite password/phone ----
 
-    @Test @Order(3) void adminPatchUpdateSelectiveFields() throws Exception {
+    @Test void adminPatchUpdateSelectiveFields() throws Exception {
         MockHttpSession admin = loginAs("admin");
         // PATCH update only email and fullName — should not touch password or phone
+        // PATCH returns {"message":"User updated"} — not the full user object
         mvc.perform(patch("/api/users/4").session(admin)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("email", "patched@test.com", "fullName", "Patched Name"))))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("User updated"));
+
+        // Follow-up GET verifies the fields were actually persisted (not just accepted)
+        MvcResult getR = mvc.perform(get("/api/users/4").session(admin))
+            .andExpect(status().isOk()).andReturn();
+        Map<String, Object> updatedUser = parseMap(getR);
+        org.junit.jupiter.api.Assertions.assertEquals("Patched Name", updatedUser.get("fullName"),
+                "fullName must reflect the PATCH update");
+        org.junit.jupiter.api.Assertions.assertEquals("cust1", updatedUser.get("username"),
+                "username must be unchanged after PATCH");
 
         // Verify the user can still log in (password not wiped)
         mvc.perform(post("/api/auth/login")
@@ -90,7 +101,7 @@ class FinalHardeningApiIT extends BaseApiIT {
 
     // ---- Server-side sorting ----
 
-    @Test @Order(4) void searchWithServerSideSortByPrice() throws Exception {
+    @Test void searchWithServerSideSortByPrice() throws Exception {
         MockHttpSession s = loginAs("cust1");
         MvcResult r = mvc.perform(get("/api/listings/search?sortBy=price_asc&size=100").session(s))
             .andExpect(status().isOk())
@@ -112,18 +123,20 @@ class FinalHardeningApiIT extends BaseApiIT {
 
     // ---- Structured location query ----
 
-    @Test @Order(5) void searchByStructuredLocation() throws Exception {
+    @Test void searchByStructuredLocation() throws Exception {
         MockHttpSession s = loginAs("cust1");
         // These columns are null in seed data, so just verify the endpoint accepts them
         mvc.perform(get("/api/listings/search?locationState=IL&locationCity=Chicago").session(s))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items").isArray());
+            .andExpect(jsonPath("$.items").isArray())
+            .andExpect(jsonPath("$.total").isNumber());
     }
 
     // ---- Notification mute preferences enforced ----
 
-    @Test @Order(6) void mutedUserDoesNotReceiveNotifications() throws Exception {
+    @Test void mutedUserDoesNotReceiveNotifications() throws Exception {
         MockHttpSession cust = loginAs("cust1");
+
         // Mute all non-critical
         mvc.perform(put("/api/notifications/preferences").session(cust)
                 .header("Origin", TEST_ORIGIN)
@@ -133,52 +146,62 @@ class FinalHardeningApiIT extends BaseApiIT {
                         "compliance", true, "muteNonCritical", true))))
             .andExpect(status().isOk());
 
-        // Count current notifications
-        MvcResult before = mvc.perform(get("/api/notifications").session(cust))
-            .andExpect(status().isOk()).andReturn();
-        int countBefore = ((java.util.List<?>) om.readValue(
-                before.getResponse().getContentAsString(), java.util.List.class)).size();
+        try {
+            // Count current notifications
+            MvcResult before = mvc.perform(get("/api/notifications").session(cust))
+                .andExpect(status().isOk()).andReturn();
+            int countBefore = ((java.util.List<?>) om.readValue(
+                    before.getResponse().getContentAsString(), java.util.List.class)).size();
 
-        // Create an order (should trigger notifications, but user is muted)
-        MockHttpSession photo = loginAs("photo1");
-        MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("listingId", 1, "slotDate", "2026-12-10",
-                        "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
-            .andExpect(status().isOk()).andReturn();
-        int slotId = ((Number) parseMap(slotR).get("id")).intValue();
+            // Create an order (should trigger notifications, but user is muted)
+            MockHttpSession photo = loginAs("photo1");
+            MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
+                    .header("Origin", TEST_ORIGIN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json(Map.of("listingId", 1, "slotDate", "2026-12-10",
+                            "startTime", "09:00", "endTime", "10:00", "capacity", 1))))
+                .andExpect(status().isOk()).andReturn();
+            int slotId = ((Number) parseMap(slotR).get("id")).intValue();
 
-        mvc.perform(post("/api/orders").session(cust)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "mute-test")
-                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
-            .andExpect(status().isOk());
+            mvc.perform(post("/api/orders").session(cust)
+                    .header("Origin", TEST_ORIGIN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Idempotency-Key", "mute-" + UUID.randomUUID())
+                    .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
+                .andExpect(status().isOk());
 
-        // Count after — should NOT have increased for the muted customer
-        MvcResult after = mvc.perform(get("/api/notifications").session(cust))
-            .andExpect(status().isOk()).andReturn();
-        int countAfter = ((java.util.List<?>) om.readValue(
-                after.getResponse().getContentAsString(), java.util.List.class)).size();
-        org.junit.jupiter.api.Assertions.assertEquals(countBefore, countAfter,
-                "Muted user should not receive new order notifications");
-
-        // Unmute for other tests
-        mvc.perform(put("/api/notifications/preferences").session(cust)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("orderUpdates", true, "holds", true,
-                        "reminders", true, "approvals", true,
-                        "compliance", true, "muteNonCritical", false))))
-            .andExpect(status().isOk());
+            // Count after — should NOT have increased for the muted customer
+            MvcResult after = mvc.perform(get("/api/notifications").session(cust))
+                .andExpect(status().isOk()).andReturn();
+            int countAfter = ((java.util.List<?>) om.readValue(
+                    after.getResponse().getContentAsString(), java.util.List.class)).size();
+            org.junit.jupiter.api.Assertions.assertEquals(countBefore, countAfter,
+                    "Muted user should not receive new order notifications");
+        } finally {
+            // Unmute for other tests — always runs even on assertion failure
+            mvc.perform(put("/api/notifications/preferences").session(cust)
+                    .header("Origin", TEST_ORIGIN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json(Map.of("orderUpdates", true, "holds", true,
+                            "reminders", true, "approvals", true,
+                            "compliance", true, "muteNonCritical", false))))
+                .andExpect(status().isOk());
+        }
     }
 
     // ---- Concurrent slot oversell ----
 
-    @Test @Order(7) void concurrentSlotBookingStillPreventsOversell() throws Exception {
+    @Test void concurrentSlotBookingStillPreventsOversell() throws Exception {
         MockHttpSession cust1 = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
+
+        // Ensure cust2 is enabled at test start so previous failures don't cascade
+        MockHttpSession admin = loginAs("admin");
+        mvc.perform(patch("/api/users/5/enabled").session(admin)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("enabled", true))))
+            .andExpect(status().isOk());
 
         MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
                 .header("Origin", TEST_ORIGIN)
@@ -197,11 +220,6 @@ class FinalHardeningApiIT extends BaseApiIT {
             .andExpect(status().isOk());
 
         // Second booking must fail
-        MockHttpSession admin = loginAs("admin");
-        mvc.perform(patch("/api/users/5/enabled").session(admin)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("enabled", true))));
         MockHttpSession cust2 = loginAs("cust2");
         mvc.perform(post("/api/orders").session(cust2)
                 .header("Origin", TEST_ORIGIN)

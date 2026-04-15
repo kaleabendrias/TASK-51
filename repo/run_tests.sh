@@ -74,16 +74,17 @@ else
 fi
 
 # ─── Coverage extraction ─────────────────────────────────────
-# JaCoCo check output contains coverage data - parse from log
-UNIT_COV=$(grep -A2 'check-unit' /tmp/booking-test-output.log | grep -oP 'covered ratio is ([0-9.]+)' | grep -oP '[0-9.]+' | head -1 || echo "")
-API_COV=$(grep -A2 'check-api' /tmp/booking-test-output.log | grep -oP 'covered ratio is ([0-9.]+)' | grep -oP '[0-9.]+' | head -1 || echo "")
-
-# If coverage not found from check output, try to get from report
-if [[ -z "$UNIT_COV" ]]; then
-  UNIT_COV=$(grep -oP 'Rule violated.*?is ([0-9.]+)' /tmp/booking-test-output.log | head -1 | grep -oP '[0-9.]+$' || echo "")
-fi
-if [[ -z "$API_COV" ]]; then
-  API_COV=$(grep -oP 'Rule violated.*?is ([0-9.]+)' /tmp/booking-test-output.log | tail -1 | grep -oP '[0-9.]+$' || echo "")
+# pom.xml enforces a single merged (unit + API) threshold via check-merged.
+# JaCoCo prints "All coverage checks have been met." on success, or
+# "Rule violated ... lines covered ratio is X" on failure.
+# Do NOT parse per-suite ratios — pom.xml does not enforce them separately.
+COVERAGE_MET=false
+COVERAGE_RATIO=""
+if grep -q "All coverage checks have been met\." /tmp/booking-test-output.log 2>/dev/null; then
+  COVERAGE_MET=true
+else
+  # Extract the actual ratio from a violation line (if present)
+  COVERAGE_RATIO=$(grep -oP 'lines covered ratio is \K[0-9.]+' /tmp/booking-test-output.log | tail -1 || echo "")
 fi
 
 # ─── Summary ──────────────────────────────────────────────────
@@ -92,25 +93,29 @@ echo -e "${BOLD}═════════════════════�
 echo ""
 echo -e "  ${BOLD}Unit Tests (Surefire):${NC}"
 echo -e "    Run: ${UNIT_RUN}  Failures: ${UNIT_FAIL}  Errors: ${UNIT_ERR}  Skipped: ${UNIT_SKIP}"
-if [[ -n "$UNIT_COV" ]]; then
-  UNIT_PCT=$(echo "$UNIT_COV" | awk '{printf "%.1f", $1 * 100}')
-  echo -e "    Line Coverage: ${UNIT_PCT}%  (threshold: ${COVERAGE_THRESHOLD}%)"
-fi
 echo ""
 
 if [[ "$MODE" != "unit" ]]; then
-  echo -e "  ${BOLD}API Tests (Failsafe):${NC}"
+  echo -e "  ${BOLD}API + E2E Tests (Failsafe):${NC}"
   echo -e "    Run: ${API_RUN}  Failures: ${API_FAIL}  Errors: ${API_ERR}  Skipped: ${API_SKIP}"
-  if [[ -n "$API_COV" ]]; then
-    API_PCT=$(echo "$API_COV" | awk '{printf "%.1f", $1 * 100}')
-    echo -e "    Line Coverage: ${API_PCT}%  (threshold: ${COVERAGE_THRESHOLD}%)"
-  fi
   echo ""
 fi
 
+echo -e "  ${BOLD}Coverage Gate (merged unit + API, threshold ≥${COVERAGE_THRESHOLD}%):${NC}"
+if [[ "$COVERAGE_MET" == "true" ]]; then
+  echo -e "    ${GREEN}✓ All coverage checks met (≥${COVERAGE_THRESHOLD}% line coverage)${NC}"
+elif [[ -n "$COVERAGE_RATIO" ]]; then
+  COVERAGE_PCT=$(echo "$COVERAGE_RATIO" | awk '{printf "%.1f", $1 * 100}')
+  echo -e "    ${RED}✗ Coverage below threshold: ${COVERAGE_PCT}% (required ≥${COVERAGE_THRESHOLD}%)${NC}"
+else
+  echo -e "    ${YELLOW}(Coverage gate not yet evaluated — build failed before verify phase)${NC}"
+fi
+echo ""
+
 echo -e "  ${BOLD}Coverage Reports:${NC}"
-echo -e "    Unit: test-results/jacoco-unit/index.html"
-echo -e "    API:  test-results/jacoco-api/index.html"
+echo -e "    Unit:   test-results/jacoco-unit/index.html"
+echo -e "    API:    test-results/jacoco-api/index.html"
+echo -e "    Merged: test-results/jacoco-merged/index.html"
 echo ""
 
 # ─── Verdict ──────────────────────────────────────────────────

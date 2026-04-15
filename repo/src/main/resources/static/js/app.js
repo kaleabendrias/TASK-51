@@ -46,7 +46,7 @@ const Validate={
   $(form).find('[data-validate]').off('input.v blur.v').on('input.v blur.v',function(){
    const rules=$(this).data('validate').split(',');
    for(const r of rules){
-    const[fn,...args]=r.split(':');
+    const _rparts=r.split(':');const fn=_rparts[0];const args=_rparts.slice(1);
     let ok=true,msg='Invalid';
     if(fn==='required'){ok=Validate.required($(this).val());msg='This field is required'}
     else if(fn==='email'){ok=Validate.email($(this).val());msg='Enter a valid email'}

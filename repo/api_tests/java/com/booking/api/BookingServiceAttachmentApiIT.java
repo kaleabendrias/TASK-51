@@ -1,9 +1,6 @@
 package com.booking.api;
 
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 
@@ -13,13 +10,13 @@ import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class BookingServiceAttachmentApiIT extends BaseApiIT {
 
     // ---- REMOVED SURFACES: /api/bookings, /api/services, /api/attachments ----
     // Controllers have been physically deleted. Requests return 404.
 
-    @Test @Order(1) void legacyBookingsEndpointRemoved() throws Exception {
+    @Test
+    void legacyBookingsEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/bookings").session(s)).andExpect(status().isNotFound());
         mvc.perform(get("/api/bookings/1").session(s)).andExpect(status().isNotFound());
@@ -28,25 +25,29 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
                 .content(json(Map.of("serviceId", 1)))).andExpect(status().isNotFound());
     }
 
-    @Test @Order(2) void legacyServicesEndpointRemoved() throws Exception {
+    @Test
+    void legacyServicesEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/services").session(s)).andExpect(status().isNotFound());
         mvc.perform(get("/api/services/1").session(s)).andExpect(status().isNotFound());
     }
 
-    @Test @Order(3) void legacyAttachmentsEndpointRemoved() throws Exception {
+    @Test
+    void legacyAttachmentsEndpointRemoved() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/attachments/booking/1").session(s)).andExpect(status().isNotFound());
         mvc.perform(get("/api/attachments/1/download").session(s)).andExpect(status().isNotFound());
     }
 
     // ---- PAGE CONTROLLER ----
-    @Test @Order(30) void rootRedirects() throws Exception {
+    @Test
+    void rootRedirects() throws Exception {
         mvc.perform(get("/")).andExpect(status().is3xxRedirection());
     }
 
     // ---- USERS ----
-    @Test @Order(40) void listPhotographers() throws Exception {
+    @Test
+    void listPhotographers() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/users/photographers").session(s))
             .andExpect(status().isOk())
@@ -59,23 +60,27 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
             .andExpect(jsonPath("$[0].passwordHash").doesNotExist());
     }
 
-    @Test @Order(41) void getUserSelf() throws Exception {
+    @Test
+    void getUserSelf() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/users/4").session(s)).andExpect(status().isOk())
             .andExpect(jsonPath("$.username").value("cust1"));
     }
 
-    @Test @Order(42) void getUserOtherDenied() throws Exception {
+    @Test
+    void getUserOtherDenied() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/users/1").session(s)).andExpect(status().isForbidden());
     }
 
-    @Test @Order(43) void getUserNotFound() throws Exception {
+    @Test
+    void getUserNotFound() throws Exception {
         MockHttpSession s = loginAs("admin");
         mvc.perform(get("/api/users/9999").session(s)).andExpect(status().isNotFound());
     }
 
-    @Test @Order(44) void enableDisableUser() throws Exception {
+    @Test
+    void enableDisableUser() throws Exception {
         MockHttpSession s = loginAs("admin");
         mvc.perform(patch("/api/users/5/enabled").session(s)
                 .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
@@ -87,7 +92,8 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
             .andExpect(status().isOk());
     }
 
-    @Test @Order(45) void updateUserNonAdminDenied() throws Exception {
+    @Test
+    void updateUserNonAdminDenied() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(put("/api/users/4").session(s)
                 .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
@@ -96,12 +102,14 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
     }
 
     // ---- LISTINGS ----
-    @Test @Order(50) void listActiveListings() throws Exception {
+    @Test
+    void listActiveListings() throws Exception {
         MockHttpSession s = loginAs("cust1");
         mvc.perform(get("/api/listings").session(s)).andExpect(status().isOk());
     }
 
-    @Test @Order(51) void createListing() throws Exception {
+    @Test
+    void createListing() throws Exception {
         MockHttpSession s = loginAs("photo1");
         mvc.perform(post("/api/listings").session(s)
                 .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
@@ -111,7 +119,8 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.title").value("API Test Listing"));
     }
 
-    @Test @Order(52) void updateListing() throws Exception {
+    @Test
+    void updateListing() throws Exception {
         MockHttpSession s = loginAs("photo1");
         mvc.perform(put("/api/listings/1").session(s)
                 .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
@@ -121,7 +130,8 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
             .andExpect(status().isOk());
     }
 
-    @Test @Order(53) void createTimeSlot() throws Exception {
+    @Test
+    void createTimeSlot() throws Exception {
         MockHttpSession s = loginAs("photo1");
         mvc.perform(post("/api/timeslots").session(s)
                 .header("Origin", TEST_ORIGIN).contentType(MediaType.APPLICATION_JSON)
@@ -132,7 +142,8 @@ class BookingServiceAttachmentApiIT extends BaseApiIT {
     }
 
     // ---- HEALTH ----
-    @Test @Order(60) void healthEndpoint() throws Exception {
+    @Test
+    void healthEndpoint() throws Exception {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("UP"));
     }
 }

@@ -16,6 +16,13 @@ INSERT INTO time_slots (id, listing_id, slot_date, start_time, end_time, capacit
 (3, 2, '2026-06-20', '10:00:00', '11:30:00', 2, 0, 0),
 (4, 3, '2026-06-22', '09:00:00', '11:00:00', 3, 0, 0),
 (5, 1, '2026-06-16', '09:00:00', '10:00:00', 1, 0, 0);
+-- Near-term slots within a 30-day window of 2026-04-15 for E2E browser tests.
+-- Split into a separate INSERT to avoid Spring ScriptUtils mis-parsing comments mid-VALUES.
+-- Capacity 100 so multiple E2E tests can book without exhausting availability.
+INSERT INTO time_slots (id, listing_id, slot_date, start_time, end_time, capacity, booked_count, version) VALUES
+(6, 1, '2026-05-01', '09:00:00', '10:00:00', 100, 0, 0),
+(7, 2, '2026-05-05', '10:00:00', '11:30:00', 100, 0, 0),
+(8, 3, '2026-05-10', '09:00:00', '11:00:00', 100, 0, 0);
 INSERT INTO addresses (id, user_id, label, street, city, state, postal_code, country, is_default) VALUES
 (1, 4, 'Home', '123 Main St', 'Springfield', 'IL', '62701', 'US', TRUE),
 (2, 4, 'Work', '456 Office Rd', 'Springfield', 'IL', '62702', 'US', FALSE);

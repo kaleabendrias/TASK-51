@@ -9,11 +9,26 @@ import static org.mockito.Mockito.*;
 
 class SessionUtilTest {
 
-    @Test void setAndGetCurrentUser() {
+    @Test void setCurrentUserDelegatesToSession() {
         HttpSession s = mock(HttpSession.class);
         User u = new User(); u.setId(1L);
         SessionUtil.setCurrentUser(s, u);
         verify(s).setAttribute("currentUser", u);
+    }
+
+    @Test void getCurrentUserReturnsStoredUser() {
+        HttpSession s = mock(HttpSession.class);
+        User u = new User(); u.setId(7L);
+        when(s.getAttribute("currentUser")).thenReturn(u);
+        assertSame(u, SessionUtil.getCurrentUser(s),
+                "getCurrentUser must return the exact object stored in the session");
+    }
+
+    @Test void getCurrentUserReturnsNullWhenNoUserInSession() {
+        HttpSession s = mock(HttpSession.class);
+        when(s.getAttribute("currentUser")).thenReturn(null);
+        assertNull(SessionUtil.getCurrentUser(s),
+                "getCurrentUser must return null when no user has been stored");
     }
 
     @Test void isAdminTrue() {

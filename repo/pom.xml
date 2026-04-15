@@ -35,6 +35,13 @@
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
         <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>test</scope></dependency>
         <dependency><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId><scope>test</scope></dependency>
+        <!-- HtmlUnit: headless browser for E2E journey tests against the real frontend -->
+        <dependency>
+            <groupId>org.htmlunit</groupId>
+            <artifactId>htmlunit</artifactId>
+            <version>4.6.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -141,7 +148,14 @@ Tests must live in unit_tests/ or api_tests/ only. Found files under src/test/ja
                     <execution>
                         <id>prepare-agent-integration</id>
                         <goals><goal>prepare-agent-integration</goal></goals>
-                        <configuration><destFile>${project.build.directory}/jacoco-it.exec</destFile></configuration>
+                        <configuration>
+                            <destFile>${project.build.directory}/jacoco-it.exec</destFile>
+                            <!-- HtmlUnit CSS/JS engine classes are too large to instrument;
+                                 exclude them to prevent MethodTooLargeException at runtime -->
+                            <excludes>
+                                <exclude>org/htmlunit/**</exclude>
+                            </excludes>
+                        </configuration>
                     </execution>
                     <execution>
                         <id>report-unit</id>

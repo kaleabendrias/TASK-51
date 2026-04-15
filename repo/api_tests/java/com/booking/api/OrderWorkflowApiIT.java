@@ -1,30 +1,57 @@
 package com.booking.api;
 
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+/**
+ * Order workflow integration tests — fully independent and self-contained.
+ *
+ * Every test creates its own time slot with UUID-suffixed idempotency keys,
+ * so tests are safe to run in any JVM order without shared state.
+ *
+ * Tests 1-3 use seeded slots with capacity ≥ 2 so that parallel or out-of-order
+ * execution by Maven Surefire does not cause spurious "fully booked" failures.
+ * The oversell test always creates a fresh capacity-1 slot.
+ */
 class OrderWorkflowApiIT extends BaseApiIT {
 
-    @Test @Order(1)
+    /** Creates a fresh time slot owned by photo1 and returns its ID. */
+    private long freshSlot(MockHttpSession photo, int listingId, String date) throws Exception {
+        MvcResult r = mvc.perform(post("/api/timeslots").session(photo)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                        "listingId", listingId,
+                        "slotDate",  date,
+                        "startTime", "09:00",
+                        "endTime",   "11:00",
+                        "capacity",  5))))
+            .andExpect(status().isOk())
+            .andReturn();
+        return ((Number) parseMap(r).get("id")).longValue();
+    }
+
+    @Test
     void createOrderHappyPath() throws Exception {
         MockHttpSession cust = loginAs("cust1");
+        MockHttpSession photo = loginAs("photo1");
+        long slotId = freshSlot(photo, 1, "2026-08-01");
+
         mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-test-create-1")
-                .content(json(Map.of("listingId", 1, "timeSlotId", 1, "addressId", 1, "notes", "API test"))))
+                .header("Idempotency-Key", "wf-create-" + UUID.randomUUID())
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CREATED"))
             .andExpect(jsonPath("$.orderNumber").isNotEmpty())
@@ -32,205 +59,216 @@ class OrderWorkflowApiIT extends BaseApiIT {
             .andExpect(jsonPath("$.totalPrice").isNumber());
     }
 
-    @Test @Order(2)
+    @Test
     void idempotencyReturnsCachedResponse() throws Exception {
         MockHttpSession cust = loginAs("cust1");
+        MockHttpSession photo = loginAs("photo1");
+        long slotId = freshSlot(photo, 1, "2026-08-02");
+        String idem = "wf-idem-" + UUID.randomUUID();
+
         // First call
-        mvc.perform(post("/api/orders").session(cust)
+        MvcResult first = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-test-idem-dup")
-                .content(json(Map.of("listingId", 1, "timeSlotId", 2))))
-            .andExpect(status().isOk());
-        // Retry with same key
-        mvc.perform(post("/api/orders").session(cust)
+                .header("Idempotency-Key", idem)
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
+            .andExpect(status().isOk()).andReturn();
+
+        // Retry with same key — must return the same order ID
+        MvcResult second = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-test-idem-dup")
-                .content(json(Map.of("listingId", 1, "timeSlotId", 2))))
-            .andExpect(status().isOk());
+                .header("Idempotency-Key", idem)
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
+            .andExpect(status().isOk()).andReturn();
+
+        assertEquals(parseMap(first).get("id"), parseMap(second).get("id"),
+                "Same idempotency key must return the same cached order ID");
     }
 
-    @Test @Order(3)
+    @Test
     void oversellPrevention() throws Exception {
-        MockHttpSession cust = loginAs("cust1");
-        // slot 1 capacity=1, should be taken from test 1
-        mvc.perform(post("/api/orders").session(cust)
+        MockHttpSession cust1 = loginAs("cust1");
+        MockHttpSession cust2 = loginAs("cust2");
+        MockHttpSession photo  = loginAs("photo1");
+
+        // Create a dedicated capacity-1 slot for this test
+        MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-test-oversell")
-                .content(json(Map.of("listingId", 1, "timeSlotId", 1))))
+                .content(json(Map.of(
+                        "listingId", 1, "slotDate", "2026-08-03",
+                        "startTime", "09:00", "endTime", "11:00", "capacity", 1))))
+            .andExpect(status().isOk()).andReturn();
+        long slotId = ((Number) parseMap(slotR).get("id")).longValue();
+
+        // First booking fills the capacity-1 slot
+        mvc.perform(post("/api/orders").session(cust1)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", "wf-oversell-1st-" + UUID.randomUUID())
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
+            .andExpect(status().isOk());
+
+        // Second booking on the same slot must be rejected
+        mvc.perform(post("/api/orders").session(cust2)
+                .header("Origin", TEST_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", "wf-oversell-2nd-" + UUID.randomUUID())
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error", containsString("fully booked")));
     }
 
-    @Test @Order(4)
+    @Test
     void fullLifecycleConfirmPayCheckInOutComplete() throws Exception {
-        MockHttpSession cust = loginAs("cust1");
+        MockHttpSession cust  = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
+        long slotId = freshSlot(photo, 1, "2026-08-04");
 
-        // Create
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-lifecycle-create")
-                .content(json(Map.of("listingId", 1, "timeSlotId", 5))))
+                .header("Idempotency-Key", "wf-lc-create-" + UUID.randomUUID())
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(cr).get("id")).intValue();
+        String pfx = "wf-lc-" + orderId;
 
-        // Confirm
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "api-lc-confirm"))
+                .header("Idempotency-Key", pfx + "-confirm"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CONFIRMED"));
 
-        // Pay
         mvc.perform(post("/api/orders/" + orderId + "/pay").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-lc-pay")
-                .content(json(Map.of("amount", 150.0, "paymentReference", "REF-API"))))
+                .header("Idempotency-Key", pfx + "-pay")
+                .content(json(Map.of("amount", 150.0, "paymentReference", "REF-WF"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("PAID"));
 
-        // Check-in
         mvc.perform(post("/api/orders/" + orderId + "/check-in").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "api-lc-checkin"))
+                .header("Idempotency-Key", pfx + "-checkin"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CHECKED_IN"));
 
-        // Check-out
         mvc.perform(post("/api/orders/" + orderId + "/check-out").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "api-lc-checkout"))
+                .header("Idempotency-Key", pfx + "-checkout"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CHECKED_OUT"));
 
-        // Complete
         mvc.perform(post("/api/orders/" + orderId + "/complete").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "api-lc-complete"))
+                .header("Idempotency-Key", pfx + "-complete"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("COMPLETED"));
 
-        // Audit trail
         mvc.perform(get("/api/orders/" + orderId + "/audit").session(cust))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(greaterThanOrEqualTo(6)));
     }
 
-    @Test @Order(5)
+    @Test
     void cancelBranchAutoRefundsIfPaid() throws Exception {
-        MockHttpSession cust = loginAs("cust1");
+        MockHttpSession cust  = loginAs("cust1");
         MockHttpSession photo = loginAs("photo1");
-
-        // Create a fresh slot for listing 3
-        MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("listingId", 3, "slotDate", "2026-09-01",
-                        "startTime", "09:00", "endTime", "11:00", "capacity", 1))))
-            .andExpect(status().isOk()).andReturn();
-        int freshSlot = ((Number) parseMap(slotR).get("id")).intValue();
+        long slotId = freshSlot(photo, 3, "2026-08-05");
 
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-cancel-create")
-                .content(json(Map.of("listingId", 3, "timeSlotId", freshSlot))))
+                .header("Idempotency-Key", "wf-cancel-create-" + UUID.randomUUID())
+                .content(json(Map.of("listingId", 3, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(cr).get("id")).intValue();
+        String pfx = "wf-cancel-" + orderId;
 
-        // Confirm + Pay
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "api-cancel-confirm"))
+                .header("Idempotency-Key", pfx + "-confirm"))
             .andExpect(status().isOk());
+
         mvc.perform(post("/api/orders/" + orderId + "/pay").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-cancel-pay")
+                .header("Idempotency-Key", pfx + "-pay")
                 .content(json(Map.of("amount", 300.0, "paymentReference", "REF-C"))))
             .andExpect(status().isOk());
 
-        // Cancel from PAID state -> auto-refund
         mvc.perform(post("/api/orders/" + orderId + "/cancel").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-cancel-do")
+                .header("Idempotency-Key", pfx + "-cancel")
                 .content(json(Map.of("reason", "Changed plans"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CANCELLED"))
             .andExpect(jsonPath("$.refundAmount").value(300.0));
     }
 
-    @Test @Order(6)
+    @Test
     void invalidTransitionBlocked() throws Exception {
-        MockHttpSession cust = loginAs("cust1");
-        // Create order on slot 3 (listing 2, capacity 2)
+        MockHttpSession cust  = loginAs("cust1");
+        MockHttpSession photo = loginAs("photo2");
+        long slotId = freshSlot(photo, 2, "2026-08-06");
+
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-invalid-create")
-                .content(json(Map.of("listingId", 2, "timeSlotId", 3))))
+                .header("Idempotency-Key", "wf-invalid-create-" + UUID.randomUUID())
+                .content(json(Map.of("listingId", 2, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(cr).get("id")).intValue();
 
-        // Try to skip to COMPLETED from CREATED -> 400
-        MockHttpSession photo = loginAs("photo2");
         mvc.perform(post("/api/orders/" + orderId + "/complete").session(photo)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "api-invalid-complete"))
+                .header("Idempotency-Key", "wf-invalid-complete-" + UUID.randomUUID()))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error", containsString("Invalid transition")));
     }
 
-    @Test @Order(7)
+    @Test
     void customerCannotConfirm() throws Exception {
-        MockHttpSession cust = loginAs("cust1");
+        MockHttpSession cust  = loginAs("cust1");
+        MockHttpSession photo = loginAs("photo1");
+        long slotId = freshSlot(photo, 1, "2026-08-07");
+
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-rbac-confirm-create")
-                .content(json(Map.of("listingId", 2, "timeSlotId", 3))))
+                .header("Idempotency-Key", "wf-rbac-create-" + UUID.randomUUID())
+                .content(json(Map.of("listingId", 1, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(cr).get("id")).intValue();
 
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(cust)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "api-rbac-confirm-do"))
+                .header("Idempotency-Key", "wf-rbac-confirm-" + UUID.randomUUID()))
             .andExpect(status().isForbidden());
     }
 
-    @Test @Order(8)
+    @Test
     void otherPhotographerCannotConfirm() throws Exception {
-        MockHttpSession cust = loginAs("cust1");
+        MockHttpSession cust   = loginAs("cust1");
         MockHttpSession photo1 = loginAs("photo1");
+        MockHttpSession photo2 = loginAs("photo2");
 
-        // Create a fresh slot for listing 3 (owned by photo1)
-        MvcResult slotR = mvc.perform(post("/api/timeslots").session(photo1)
-                .header("Origin", TEST_ORIGIN)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("listingId", 3, "slotDate", "2026-09-05",
-                        "startTime", "10:00", "endTime", "12:00", "capacity", 1))))
-            .andExpect(status().isOk()).andReturn();
-        int freshSlot = ((Number) parseMap(slotR).get("id")).intValue();
+        long slotId = freshSlot(photo1, 3, "2026-08-08");
 
         MvcResult cr = mvc.perform(post("/api/orders").session(cust)
                 .header("Origin", TEST_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "api-wrong-photo-create")
-                .content(json(Map.of("listingId", 3, "timeSlotId", freshSlot))))
+                .header("Idempotency-Key", "wf-wrong-photo-create-" + UUID.randomUUID())
+                .content(json(Map.of("listingId", 3, "timeSlotId", slotId))))
             .andExpect(status().isOk()).andReturn();
         int orderId = ((Number) parseMap(cr).get("id")).intValue();
 
-        // photo2 tries to confirm photo1's order
-        MockHttpSession photo2 = loginAs("photo2");
         mvc.perform(post("/api/orders/" + orderId + "/confirm").session(photo2)
                 .header("Origin", TEST_ORIGIN)
-                .header("Idempotency-Key", "api-wrong-photo-confirm"))
+                .header("Idempotency-Key", "wf-wrong-photo-confirm-" + UUID.randomUUID()))
             .andExpect(status().isForbidden());
     }
 }
