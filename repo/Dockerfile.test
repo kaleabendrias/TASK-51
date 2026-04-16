@@ -1,8 +1,18 @@
+# Stage 1: grab Node.js from the official image (no apt needed)
+FROM node:20-slim AS node_base
+
+# Stage 2: main test image
 FROM maven:3.9-eclipse-temurin-21
+
+# Bring in Node.js + npm from the official node image — avoids apt mirror issues
+COPY --from=node_base /usr/local/bin/node      /usr/local/bin/node
+COPY --from=node_base /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 WORKDIR /build
 
-# Cache dependencies including plugin deps
+# Cache Maven dependencies including plugin deps
 COPY pom.xml .
 RUN mvn dependency:go-offline dependency:resolve-plugins -B || true
 
@@ -10,8 +20,15 @@ RUN mvn dependency:go-offline dependency:resolve-plugins -B || true
 COPY src ./src
 
 # Copy test sources from approved root-level directories
-COPY unit_tests ./unit_tests
-COPY api_tests  ./api_tests
+COPY unit_tests     ./unit_tests
+COPY api_tests      ./api_tests
+COPY frontend_tests ./frontend_tests
 
-ENTRYPOINT ["mvn"]
+# Install frontend test dependencies (clean install, no lockfile required)
+RUN cd frontend_tests && npm install --no-fund --no-audit
+
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["verify", "-B"]

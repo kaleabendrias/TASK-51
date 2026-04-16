@@ -55,6 +55,17 @@ echo ""
 echo -e "${YELLOW}[3/4] Parsing test results...${NC}"
 echo ""
 
+# ─── Frontend (Jest) results ─────────────────────────────────
+# Jest prints: "Tests: X passed, Y total" or "Tests: A failed, B passed, C total"
+JEST_LINE=$(grep -oP 'Tests:\s+.*?(?=\n|$)' /tmp/booking-test-output.log | head -1 || echo "")
+if [[ -z "$JEST_LINE" ]]; then
+  JEST_LINE=$(grep 'Tests:' /tmp/booking-test-output.log | head -1 || echo "")
+fi
+JEST_PASS=$(echo "$JEST_LINE" | grep -oP '(\d+) passed' | grep -oP '\d+' || echo "0")
+JEST_FAIL=$(echo "$JEST_LINE" | grep -oP '(\d+) failed'  | grep -oP '\d+' || echo "0")
+JEST_TOTAL=$(echo "$JEST_LINE" | grep -oP '(\d+) total'  | grep -oP '\d+' || echo "0")
+JEST_SUITES=$(grep -oP 'Test Suites:.*?(?=\n|$)' /tmp/booking-test-output.log | head -1 || echo "")
+
 # Extract totals from summary lines (lines without " -- in " are totals)
 # Surefire prints its total first, Failsafe prints its total second
 UNIT_SUMMARY=$(grep 'Tests run:' /tmp/booking-test-output.log | grep -v ' -- in ' | head -1 || echo "Tests run: 0, Failures: 0, Errors: 0, Skipped: 0")
@@ -91,6 +102,17 @@ fi
 echo -e "${BOLD}[4/4] Quality Gate Summary${NC}"
 echo -e "${BOLD}══════════════════════════════════════════════════════════════${NC}"
 echo ""
+echo -e "  ${BOLD}Frontend Tests (Jest):${NC}"
+if [[ -n "$JEST_TOTAL" && "$JEST_TOTAL" -gt 0 ]]; then
+  if [[ "${JEST_FAIL:-0}" -eq 0 ]]; then
+    echo -e "    ${GREEN}✓ ${JEST_PASS}/${JEST_TOTAL} passed${NC}  ${JEST_SUITES}"
+  else
+    echo -e "    ${RED}✗ ${JEST_FAIL} failed, ${JEST_PASS} passed, ${JEST_TOTAL} total${NC}"
+  fi
+else
+  echo -e "    ${YELLOW}(no Jest results found in output)${NC}"
+fi
+echo ""
 echo -e "  ${BOLD}Unit Tests (Surefire):${NC}"
 echo -e "    Run: ${UNIT_RUN}  Failures: ${UNIT_FAIL}  Errors: ${UNIT_ERR}  Skipped: ${UNIT_SKIP}"
 echo ""
@@ -119,7 +141,7 @@ echo -e "    Merged: test-results/jacoco-merged/index.html"
 echo ""
 
 # ─── Verdict ──────────────────────────────────────────────────
-TOTAL_FAIL=$((UNIT_FAIL + UNIT_ERR + API_FAIL + API_ERR))
+TOTAL_FAIL=$((UNIT_FAIL + UNIT_ERR + API_FAIL + API_ERR + ${JEST_FAIL:-0}))
 
 if [[ "$PASS" == "true" && "$TOTAL_FAIL" -eq 0 ]]; then
   echo -e "${GREEN}${BOLD}  ✓ QUALITY GATE PASSED${NC}"

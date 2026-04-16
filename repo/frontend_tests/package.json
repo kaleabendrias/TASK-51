@@ -1,0 +1,17 @@
+{
+  "name": "booking-portal-frontend-tests",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "jest --ci --forceExit"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "setupFiles": ["./setup.js"],
+    "testMatch": ["**/tests/**/*.spec.js"]
+  }
+}
