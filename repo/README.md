@@ -46,7 +46,7 @@ A full-stack photography booking platform that connects customers with photograp
 To ensure a consistent environment, this project is designed to run entirely within containers. You must have the following installed:
 
 * [Docker](https://docs.docker.com/get-docker/) (with the Docker daemon running)
-* [Docker Compose](https://docs.docker.com/compose/install/) (v2 recommended: `docker compose`)
+* [Docker Compose](https://docs.docker.com/compose/install/) (`docker-compose` CLI must be available)
 
 No host-installed JDK, Maven, or MySQL is required.
 
@@ -54,7 +54,7 @@ No host-installed JDK, Maven, or MySQL is required.
 
 1. **Build and start the full stack:**
    ```bash
-   docker compose up
+   docker-compose up
    ```
    The stack is fully self-contained. An `init-secrets` container runs first and generates all runtime credentials (MySQL password, encryption key) to a shared `tmpfs` volume — nothing is persisted to the host filesystem.
 
@@ -64,13 +64,63 @@ No host-installed JDK, Maven, or MySQL is required.
 
 3. **Stop the application:**
    ```bash
-   docker compose down
+   docker-compose down
    ```
 
 4. **Full reset (regenerates all secrets and clears all data):**
    ```bash
-   docker compose down -v && docker compose up
+   docker-compose down -v && docker-compose up
    ```
+
+### Verification Flow
+
+Once the stack is up, run the following commands to confirm the application is working end-to-end.
+
+**Step 1 — Health check (no auth required):**
+```bash
+curl -s http://localhost:8080/actuator/health
+# Expected: {"status":"UP"}
+```
+
+**Step 2 — Login and capture the session cookie:**
+```bash
+curl -s -c cookies.txt -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"cust1","password":"password123"}'
+# Expected: {"id":4,"username":"cust1","roleName":"CUSTOMER", ...}
+```
+
+**Step 3 — Fetch loyalty-points balance:**
+```bash
+curl -s -b cookies.txt http://localhost:8080/api/points/balance \
+  -H "X-Requested-With: XMLHttpRequest"
+# Expected: {"balance":<number>}
+```
+
+**Step 4 — Create an address and verify the returned ID:**
+```bash
+curl -s -b cookies.txt -X POST http://localhost:8080/api/addresses \
+  -H "Content-Type: application/json" \
+  -H "X-Requested-With: XMLHttpRequest" \
+  -d '{"label":"Curl Test","street":"1 Main St","city":"Los Angeles","state":"CA","postalCode":"90001","country":"US","isDefault":false}'
+# Expected: {"id":<N>,"label":"Curl Test","street":"1 Main St", ...}
+```
+
+Copy the `id` from the response and substitute it in the next command.
+
+**Step 5 — Retrieve the address by dynamic ID:**
+```bash
+curl -s -b cookies.txt http://localhost:8080/api/addresses/<N> \
+  -H "X-Requested-With: XMLHttpRequest"
+# Expected: {"id":<N>,"label":"Curl Test", ...}
+```
+
+**Step 6 — UI walkthrough:**
+1. Open `http://localhost:8080` in a browser.
+2. Log in as `cust1` / `password123` — the dashboard should load with available listings.
+3. Click any listing to open the detail view and confirm the booking form is rendered.
+4. Navigate to **My Addresses** — the address created in Step 4 should appear with label "Curl Test".
+5. Log out; you should be redirected to the login page.
 
 | Service | Container | Lifecycle | Purpose |
 |---------|-----------|-----------|---------|

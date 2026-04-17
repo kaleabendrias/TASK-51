@@ -78,6 +78,15 @@ $stub.extend = function(a, b) { return Object.assign(a, b); };
 global.$       = $stub;
 global.jQuery  = $stub;
 
+// Mock EventSource so ChatPage.connectSse() does not throw in jsdom
+global.EventSource = class MockEventSource {
+  constructor(url) { this.url = url; }
+  addEventListener() {}
+  close() {}
+  set onerror(_fn) {}
+  set onmessage(_fn) {}
+};
+
 // ── 2. Load the real app.js ───────────────────────────────────────────────
 const appJsPath = path.resolve(
   __dirname,
@@ -104,8 +113,24 @@ this.uuid        = typeof uuid        !== 'undefined' ? uuid        : undefined;
 this.fmtDate     = typeof fmtDate     !== 'undefined' ? fmtDate     : undefined;
 this.fmtDateTime = typeof fmtDateTime !== 'undefined' ? fmtDateTime : undefined;
 this.escHtml     = typeof escHtml     !== 'undefined' ? escHtml     : undefined;
-this.Store       = typeof Store       !== 'undefined' ? Store       : undefined;
-this.App         = typeof App         !== 'undefined' ? App         : undefined;
+this.Store             = typeof Store             !== 'undefined' ? Store             : undefined;
+this.App               = typeof App               !== 'undefined' ? App               : undefined;
+this.LoginPage         = typeof LoginPage         !== 'undefined' ? LoginPage         : undefined;
+this.SearchPage        = typeof SearchPage        !== 'undefined' ? SearchPage        : undefined;
+this.ListingDetailPage = typeof ListingDetailPage !== 'undefined' ? ListingDetailPage : undefined;
+this.OrdersPage        = typeof OrdersPage        !== 'undefined' ? OrdersPage        : undefined;
+this.OrderDetailPage   = typeof OrderDetailPage   !== 'undefined' ? OrderDetailPage   : undefined;
+this.AddressPage       = typeof AddressPage       !== 'undefined' ? AddressPage       : undefined;
+this.ChatPage          = typeof ChatPage          !== 'undefined' ? ChatPage          : undefined;
+this.NotifPage         = typeof NotifPage         !== 'undefined' ? NotifPage         : undefined;
+this.PointsPage        = typeof PointsPage        !== 'undefined' ? PointsPage        : undefined;
+this.PhotoDashPage     = typeof PhotoDashPage     !== 'undefined' ? PhotoDashPage     : undefined;
+this.MyListingsPage    = typeof MyListingsPage    !== 'undefined' ? MyListingsPage    : undefined;
+this.AdminDashPage     = typeof AdminDashPage     !== 'undefined' ? AdminDashPage     : undefined;
+this.UsersAdminPage    = typeof UsersAdminPage    !== 'undefined' ? UsersAdminPage    : undefined;
+this.BlacklistAdminPage= typeof BlacklistAdminPage!== 'undefined' ? BlacklistAdminPage: undefined;
+this.ServicesAdminPage = typeof ServicesAdminPage !== 'undefined' ? ServicesAdminPage : undefined;
+this.PointsAdminPage   = typeof PointsAdminPage   !== 'undefined' ? PointsAdminPage   : undefined;
 `
 );
 

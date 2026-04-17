@@ -17,8 +17,12 @@ class AuthApiIT extends BaseApiIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("username", "admin", "password", "password123"))))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").isNumber())
             .andExpect(jsonPath("$.username").value("admin"))
-            .andExpect(jsonPath("$.role").value("ADMINISTRATOR"));
+            .andExpect(jsonPath("$.email").isString())
+            .andExpect(jsonPath("$.fullName").isString())
+            .andExpect(jsonPath("$.role").value("ADMINISTRATOR"))
+            .andExpect(jsonPath("$.passwordHash").doesNotExist());
     }
 
     @Test void loginBadPassword() throws Exception {
@@ -45,7 +49,12 @@ class AuthApiIT extends BaseApiIT {
         MockHttpSession s = loginAs("admin");
         mvc.perform(get("/api/auth/me").session(s))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.role").value("ADMINISTRATOR"));
+            .andExpect(jsonPath("$.id").isNumber())
+            .andExpect(jsonPath("$.username").value("admin"))
+            .andExpect(jsonPath("$.email").isString())
+            .andExpect(jsonPath("$.fullName").isString())
+            .andExpect(jsonPath("$.role").value("ADMINISTRATOR"))
+            .andExpect(jsonPath("$.passwordHash").doesNotExist());
     }
 
     @Test void logout() throws Exception {
